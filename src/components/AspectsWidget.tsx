@@ -93,7 +93,7 @@ export const AspectsWidget: React.FC<AspectsWidgetProps> = ({ chart, aspects }) 
       </div>
 
       <div style={{ overflowX: 'auto', border: '1px solid #d9d9d9', background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+        <table className="astro-table" style={{ textAlign: 'left' }}>
           <thead>
             <tr style={{ background: '#003366', color: '#fff' }}>
               <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9' }}>Объект А</th>
@@ -131,11 +131,11 @@ export const AspectsWidget: React.FC<AspectsWidgetProps> = ({ chart, aspects }) 
 
                 return (
                   <tr key={asp.id} style={{ background: index % 2 === 0 ? '#fafafa' : '#fff', borderBottom: '1px solid #f0f0f0' }}>
-                    <td style={{ padding: '8px', fontWeight: '500', color: '#003366' }}>
-                      <span style={{ fontSize: '14px', marginRight: '4px' }}>{symA}</span>
-                      {asp.source.name}
+                    <td className="astro-planet-cell" style={{ padding: '8px', fontWeight: '500', color: '#003366' }}>
+                      <span className="astro-planet-cell__glyph astro-glyph">{symA}</span>
+                      <span>{asp.source.name}</span>
                     </td>
-                    <td style={{ padding: '8px', fontFamily: 'monospace' }}>
+                    <td className="astro-mono astro-degree-cell" style={{ padding: '8px' }}>
                       {detailsA.sign} {formatDegree(detailsA.degree)}
                     </td>
                     <td style={{ padding: '8px', fontWeight: 'bold', color: '#003366' }}>
@@ -145,17 +145,17 @@ export const AspectsWidget: React.FC<AspectsWidgetProps> = ({ chart, aspects }) 
                       <span style={{ fontSize: '15px', color: '#ff9900', marginRight: '4px' }} title={asp.aspectNameRu}>{aspSym}</span>
                       <span style={{ fontSize: '11px', color: '#333' }}>{asp.aspectNameRu}</span>
                     </td>
-                    <td style={{ padding: '8px', fontWeight: '500', color: '#003366' }}>
-                      <span style={{ fontSize: '14px', marginRight: '4px' }}>{symB}</span>
-                      {asp.target.name}
+                    <td className="astro-planet-cell" style={{ padding: '8px', fontWeight: '500', color: '#003366' }}>
+                      <span className="astro-planet-cell__glyph astro-glyph">{symB}</span>
+                      <span>{asp.target.name}</span>
                     </td>
-                    <td style={{ padding: '8px', fontFamily: 'monospace' }}>
+                    <td className="astro-mono astro-degree-cell" style={{ padding: '8px' }}>
                       {detailsB.sign} {formatDegree(detailsB.degree)}
                     </td>
                     <td style={{ padding: '8px', fontWeight: 'bold', color: '#003366' }}>
                       {detailsB.house} дом
                     </td>
-                    <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: '500', color: '#d46b08' }}>
+                    <td className="astro-mono astro-degree-cell" style={{ padding: '8px', fontWeight: '500', color: '#d46b08' }}>
                       {formatDegree(asp.orb)}
                     </td>
                     <td style={{ padding: '8px', fontSize: '11px', color: '#666' }}>

@@ -157,7 +157,7 @@ export const HouseMatrixWidget: React.FC<HouseMatrixWidgetProps> = ({ matrix, se
       </div>
 
       <div style={{ overflowX: 'auto', border: '1px solid #d9d9d9', background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'center', minWidth: '700px' }}>
+        <table className="astro-table astro-table--dense" style={{ textAlign: 'center', minWidth: '700px' }}>
           <thead>
             <tr style={{ background: '#003366', color: '#fff' }}>
               <th style={{ padding: '6px', border: '1px solid #406699', width: '60px', position: 'sticky', left: 0, zIndex: 2, background: '#003366' }}>

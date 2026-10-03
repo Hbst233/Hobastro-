@@ -17,6 +17,14 @@ const formatDegree = (deg: number): string => {
 
 const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 
+const INTERCEPTED_VERB_BY_SIGN: Record<string, string> = {
+  'Дева': 'включена',
+  'Рыбы': 'включены'
+};
+
+const interceptedLabel = (signs: string[]): string =>
+  signs.map(s => `${s} ${INTERCEPTED_VERB_BY_SIGN[s] || 'включён'}`).join(', ');
+
 const PLANET_NAMES_RU: Record<string, string> = {
   sun: 'Солнце',
   moon: 'Луна',
@@ -35,6 +43,11 @@ const PLANET_NAMES_RU: Record<string, string> = {
 
 export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) => {
   const [connectionsOpen, setConnectionsOpen] = useState(true);
+  const [openHouses, setOpenHouses] = useState<Record<number, boolean>>({});
+
+  const toggleHouse = (houseNum: number) => {
+    setOpenHouses(prev => ({ ...prev, [houseNum]: !prev[houseNum] }));
+  };
 
   if (!chart || !chart.houses) {
     return <div style={{ padding: 16 }}>Нет данных о домах</div>;
@@ -74,7 +87,7 @@ export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) 
       </div>
 
       <div style={{ overflowX: 'auto', border: '1px solid #d9d9d9', background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+        <table className="astro-table" style={{ textAlign: 'left' }}>
           <thead>
             <tr style={{ background: '#003366', color: '#fff' }}>
               <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9', width: '80px', textAlign: 'center' }}>Дом</th>
@@ -100,13 +113,13 @@ export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) 
                   <td style={{ padding: '8px', fontWeight: isAngle ? 'bold' : 'normal', textAlign: 'center', color: '#003366', background: index % 2 === 0 ? '#f0f4f8' : '#fff' }}>
                     {cusp.number} дом{angleLabel}
                   </td>
-                  <td style={{ padding: '8px', fontWeight: isAngle ? 'bold' : 'normal' }}>
-                    {cusp.sign} {formatDegree(cusp.degree)}
+                  <td className="astro-sign-cell" style={{ padding: '8px', fontWeight: isAngle ? 'bold' : 'normal' }}>
+                    {cusp.sign} <span className="astro-degree astro-mono astro-degree-cell">{formatDegree(cusp.degree)}</span>
                   </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#333' }}>
+                  <td className="astro-mono astro-degree-cell" style={{ padding: '8px', color: '#333' }}>
                     {formatDegreeSeconds(span)}
                   </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#666' }}>
+                  <td className="astro-mono" style={{ padding: '8px', color: '#666' }}>
                     {cusp.longitude.toFixed(2)}°
                   </td>
                 </tr>
@@ -124,15 +137,14 @@ export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) 
         </div>
 
         <div style={{ overflowX: 'auto', border: '1px solid #d9d9d9', background: '#fff' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+          <table className="astro-table" style={{ textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#003366', color: '#fff' }}>
                 <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9', width: '70px', textAlign: 'center' }}>Дом</th>
                 <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9', width: '140px' }}>Знак на куспиде</th>
                 <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9', width: '120px' }}>Управитель</th>
                 <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9', width: '140px' }}>Где стоит управитель</th>
-                <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9', width: '160px' }}>Планеты в доме</th>
-                <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9' }}>Связи дома</th>
+                <th style={{ padding: '8px', borderBottom: '1px solid #d9d9d9' }}>Планеты в доме</th>
               </tr>
             </thead>
             <tbody>
@@ -151,6 +163,9 @@ export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) 
                     </td>
                     <td style={{ padding: '8px' }}>
                       {houseItem.cuspSign}
+                      {houseItem.interceptedSigns.length > 0 && (
+                        <span style={{ color: '#666' }}> ({interceptedLabel(houseItem.interceptedSigns)})</span>
+                      )}
                     </td>
                     <td style={{ padding: '8px' }}>
                       {rulerNameRu}
@@ -160,19 +175,6 @@ export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) 
                     </td>
                     <td style={{ padding: '8px' }}>
                       {planetsStr}
-                    </td>
-                    <td style={{ padding: '8px', fontFamily: 'monospace' }}>
-                      {houseItem.connections.length > 0 ? (
-                        houseItem.connections.map((conn, cIdx) => {
-                          return (
-                            <div key={cIdx} style={{ marginBottom: cIdx < houseItem.connections.length - 1 ? '4px' : '0' }}>
-                              {conn.sourceHouse} → {conn.targetHouse} — {conn.detailText}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        '—'
-                      )}
                     </td>
                   </tr>
                 );
@@ -207,87 +209,40 @@ export const HousesWidget: React.FC<HousesWidgetProps> = ({ chart, birthData }) 
         {connectionsOpen && (
           <div style={{ border: '1px solid #d9d9d9', background: '#fff', padding: '16px' }}>
             {houseAnalysisResult.houses.map((houseItem) => {
-              const romanHouse = ROMAN_NUMERALS[houseItem.houseNumber - 1] || String(houseItem.houseNumber);
-              
-              // Filter connections by type for this house as requested
-              const posConns = houseItem.connections.filter(c => c.type === 'ruler_position' || c.type === 'planet_position' || c.type === 'planet_rulership');
-              const aspectConns = houseItem.connections.filter(c => c.type === 'planet_aspect');
-              const cuspAspectConns = houseItem.connections.filter(c => c.type === 'cusp_aspect');
-
-              // Elements list for header: rulers, planets, angles
-              const elementNames: string[] = [];
-              elementNames.push(getPlanetRuName(houseItem.ruler));
-              if (houseItem.modernCoRuler) {
-                elementNames.push(getPlanetRuName(houseItem.modernCoRuler));
-              }
-              for (const p of houseItem.planetsInHouse) {
-                if (!elementNames.includes(getPlanetRuName(p.id))) {
-                  elementNames.push(getPlanetRuName(p.id));
-                }
-              }
-              for (const a of houseItem.anglesInHouse) {
-                if (!elementNames.includes(a)) {
-                  elementNames.push(a);
-                }
-              }
+              const isOpen = !!openHouses[houseItem.houseNumber];
 
               return (
-                <div key={houseItem.houseNumber} style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', marginBottom: '8px' }}>
-                    🏛️ {houseItem.houseNumber} ДОМ ({houseItem.cuspSign})
+                <div key={houseItem.houseNumber} style={{ marginBottom: '8px', borderBottom: '1px solid #f0f0f0', paddingBottom: '8px' }}>
+                  <div 
+                    onClick={() => toggleHouse(houseItem.houseNumber)}
+                    style={{ 
+                      fontSize: '14px', 
+                      fontWeight: 'bold', 
+                      color: '#003366', 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      userSelect: 'none'
+                    }}
+                  >
+                    <span>{isOpen ? '▾' : '▸'}</span>
+                    <span>{houseItem.houseNumber} дом</span>
                   </div>
 
-                  <div style={{ marginLeft: '12px', fontSize: '13px', color: '#333' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#444' }}>1. Элементы дома</div>
-                    <div style={{ marginLeft: '12px', marginBottom: '8px', color: '#555', fontSize: '12px' }}>
-                      <div>- знак на куспиде: {houseItem.cuspSign}</div>
-                      <div>- классический управитель: {getPlanetRuName(houseItem.ruler)}</div>
-                      {houseItem.modernCoRuler && (
-                        <div>- современный соправитель: {getPlanetRuName(houseItem.modernCoRuler)}</div>
-                      )}
-                      <div>- планеты в доме: {houseItem.planetsInHouse.length > 0 ? houseItem.planetsInHouse.map(p => getPlanetRuName(p.id)).join(', ') : 'нет'}</div>
-                      <div>- угол/куспид: {houseItem.anglesInHouse.length > 0 ? houseItem.anglesInHouse.join(', ') : '—'}</div>
-                    </div>
-
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#444' }}>2. По положению</div>
-                    <div style={{ marginLeft: '12px', marginBottom: '8px', fontFamily: 'monospace', fontSize: '12px' }}>
-                      {posConns.length > 0 ? (
-                        posConns.map((conn, idx) => (
-                          <div key={idx} style={{ marginBottom: '2px' }}>
-                            "{conn.sourceHouse} → {conn.targetHouse} — {conn.detailText}"
+                  {isOpen && (
+                    <div style={{ marginTop: '8px', marginLeft: '16px', fontSize: '13px', color: '#333' }}>
+                      {houseItem.connections.length > 0 ? (
+                        houseItem.connections.map((conn, idx) => (
+                          <div key={idx} style={{ marginBottom: '4px', fontFamily: 'monospace', fontSize: '12px' }}>
+                            • {conn.detailText}
                           </div>
                         ))
                       ) : (
                         <div style={{ color: '#888' }}>—</div>
                       )}
                     </div>
-
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#444' }}>3. По аспектам между планетами</div>
-                    <div style={{ marginLeft: '12px', marginBottom: '8px', fontFamily: 'monospace', fontSize: '12px' }}>
-                      {aspectConns.length > 0 ? (
-                        aspectConns.map((conn, idx) => (
-                          <div key={idx} style={{ marginBottom: '2px' }}>
-                            "{conn.sourceHouse} → {conn.targetHouse} — {conn.detailText}"
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ color: '#888' }}>—</div>
-                      )}
-                    </div>
-
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#444' }}>4. По аспектам к куспидам / углам карты</div>
-                    <div style={{ marginLeft: '12px', fontFamily: 'monospace', fontSize: '12px' }}>
-                      {cuspAspectConns.length > 0 ? (
-                        cuspAspectConns.map((conn, idx) => (
-                          <div key={idx} style={{ marginBottom: '2px' }}>
-                            "{conn.sourceHouse} → {conn.targetHouse} — {conn.detailText}"
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ color: '#888' }}>—</div>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}

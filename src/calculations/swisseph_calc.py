@@ -134,7 +134,22 @@ def calculate(data):
     lon_deg = data.get('lon', 30.52)
     house_system = data.get('houseSystem', 'Placidus')
     
-    naive_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    # Server-side validation
+    if not isinstance(lat, (int, float)) or not (-90 <= lat <= 90):
+        raise ValueError(f"Недопустимая широта: {lat}")
+    if not isinstance(lon_deg, (int, float)) or not (-180 <= lon_deg <= 180):
+        raise ValueError(f"Недопустимая долгота: {lon_deg}")
+    
+    try:
+        dt_parts = date_str.split('-')
+        if len(dt_parts) != 3:
+            raise ValueError()
+        year, month, day = int(dt_parts[0]), int(dt_parts[1]), int(dt_parts[2])
+        if not (1800 <= year <= 2200):
+            raise ValueError(f"Год вне допустимого диапазона (1800-2200): {year}")
+        naive_dt = datetime(year, month, day, *map(int, time_str.split(':')[:2]))
+    except Exception as e:
+        raise ValueError(f"Некорректная дата или время: {date_str} {time_str}") from e
     
     if tz_offset_minutes is not None:
         local_dt = naive_dt.replace(tzinfo=pytz.FixedOffset(tz_offset_minutes))

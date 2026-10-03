@@ -1,6 +1,7 @@
 import { EnrichedChartResult, EnrichedPlanetPosition, getHouseForLongitude } from './planetLayer';
 import { ZodiacSignName, PlanetId, getSignRuler } from './rulerships';
 import { calculateChartAspects, AspectResult } from './aspectEngine';
+import { ZODIAC_SIGNS } from './bindhuTypes';
 
 export type HouseConnectionDataType = 'ruler_position' | 'planet_position' | 'planet_rulership' | 'planet_aspect' | 'cusp_aspect';
 
@@ -18,6 +19,7 @@ export interface HouseAnalysisItem {
   houseNumber: number;
   name: string;
   cuspSign: ZodiacSignName;
+  interceptedSigns: ZodiacSignName[];
   ruler: PlanetId;
   modernCoRuler?: PlanetId;
   rulerHouse: number;
@@ -53,6 +55,53 @@ const PLANET_NAMES_RU_MAP: Record<string, string> = {
 
 export function getPlanetRuName(id: string): string {
   return PLANET_NAMES_RU_MAP[id] || id;
+}
+
+/**
+ * Включённые (intercepted) знаки дома по фактическим долготам куспидов.
+ * Знак включён, если весь его 30° диапазон лежит между куспидом дома
+ * и куспидом следующего дома, и ни один из куспидов не находится в знаке.
+ */
+export function getInterceptedSignsForHouse(
+  houseStartLon: number,
+  houseEndLon: number
+): ZodiacSignName[] {
+  const norm = (a: number) => ((a % 360) + 360) % 360;
+  const forward = (a: number, b: number) => ((b - a) % 360 + 360) % 360;
+
+  const hStart = norm(houseStartLon);
+  const hEnd = norm(houseEndLon);
+  const houseSpan = forward(hStart, hEnd) || 360;
+  if (houseSpan >= 360) return [];
+
+  const cuspInsideSign = (signStart: number, signEnd: number, lon: number) => {
+    const delta = forward(signStart, norm(lon));
+    return delta < forward(signStart, signEnd) && delta > 0;
+  };
+
+  const intercepted: ZodiacSignName[] = [];
+
+  ZODIAC_SIGNS.forEach((sign, idx) => {
+    const signStart = idx * 30;
+    const signEnd = signStart + 30;
+
+    // Check if the 30° sign sector is strictly inside the house span (from hStart to hEnd)
+    // without containing either hStart or hEnd as a cusp.
+    // Specifically, signStart must be >= hStart (or after hStart in forward direction),
+    // and signEnd must be <= hEnd (or before hEnd in forward direction).
+    const offsetStart = forward(hStart, signStart);
+    const offsetEnd = forward(signStart, hEnd);
+
+    const fitsFully = offsetStart + 30 <= houseSpan && offsetStart >= 0 && offsetEnd >= 0;
+    if (!fitsFully) return;
+
+    if (cuspInsideSign(signStart, signEnd, hStart)) return;
+    if (cuspInsideSign(signStart, signEnd, hEnd)) return;
+
+    intercepted.push(sign);
+  });
+
+  return intercepted;
 }
 
 export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysisResult {
@@ -91,8 +140,14 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
 
   for (let i = 1; i <= 12; i++) {
     const cuspObj = cusps[i - 1];
+    const nextCuspObj = cusps[i % 12];
     const cuspSign = (cuspObj?.sign || 'Овен') as ZodiacSignName;
     const ruler = getSignRuler(cuspSign);
+
+    // Включённые (intercepted) знаки: полный 30° диапазон внутри дома, без куспидов в знаке
+    const interceptedSigns = cuspObj && nextCuspObj
+      ? getInterceptedSignsForHouse(cuspObj.longitude, nextCuspObj.longitude)
+      : [];
 
     // Modern co-ruler check if applicable (Uranus for Aquarius, Neptune for Pisces, Pluto for Scorpio)
     let modernCoRuler: PlanetId | undefined = undefined;
@@ -117,10 +172,10 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
     const connections: HouseAnalysisConnection[] = [];
 
     // 1. По положению (By position):
-    // - ruler position connection: "1 → 12 — Сатурн: управитель 1 дома находится в 12 доме"
+    // - ruler position connection: "У1 → 12 · Сат"
     if (rulerHouse) {
       const rulerRu = getPlanetRuName(ruler);
-      const detailText = `${rulerRu}: управитель ${i} дома находится в ${rulerHouse} доме`;
+      const detailText = `управитель ${i} дома находится в ${rulerHouse} доме (${rulerRu})`;
       const conn: HouseAnalysisConnection = {
         sourceHouse: i,
         targetHouse: rulerHouse,
@@ -138,7 +193,7 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
       const coRulerHouse = coRulerObj ? coRulerObj.house : getHouseForLongitude(coRulerObj?.longitude ?? 0, cusps);
       if (coRulerHouse) {
         const coRulerRu = getPlanetRuName(modernCoRuler);
-        const detailText = `${coRulerRu}: соправитель ${i} дома находится в ${coRulerHouse} доме`;
+        const detailText = `соправитель ${i} дома находится в ${coRulerHouse} доме (${coRulerRu})`;
         const conn: HouseAnalysisConnection = {
           sourceHouse: i,
           targetHouse: coRulerHouse,
@@ -154,10 +209,10 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
       }
     }
 
-    // - planets in house: "1 → 1 — Нептун: планета находится в 1 доме"
+    // - planets in house: "планета находится в доме"
     for (const planet of planetsInHouse) {
       const planetRu = getPlanetRuName(planet.id);
-      const detailText = `${planetRu}: планета находится в ${i} доме`;
+      const detailText = `${planetRu} находится в ${i} доме`;
       const conn: HouseAnalysisConnection = {
         sourceHouse: i,
         targetHouse: i,
@@ -178,7 +233,7 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
         for (const ruledHouse of planet.rulesHouses) {
           if (ruledHouse !== i) {
             const planetRu = getPlanetRuName(planet.id);
-            const detailText = `${planetRu} (управитель ${ruledHouse} дома) находится в ${i} доме`;
+            const detailText = `планета ${planetRu} в ${i} доме управляет ${ruledHouse} домом`;
             const conn: HouseAnalysisConnection = {
               sourceHouse: ruledHouse,
               targetHouse: i,
@@ -197,8 +252,6 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
     }
 
     // 2. По аспектам между планетами (By aspects between planets)
-    // For each unique planet pair involved in an aspect, assign directions from A's houses to B's houses
-    // where A is the planet whose house matches i.
     for (const asp of aspects) {
       const p1Id = asp.source.id;
       const p2Id = asp.target.id;
@@ -226,12 +279,12 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
         }
       }
 
+      const aspName = asp.aspectNameRu;
+
       // If house i is among p1Houses, the direction is from p1's houses (source: i) to p2's houses (target: targetH)
       if (p1Houses.has(i)) {
         for (const targetH of p2Houses) {
-          const p1Ru = getPlanetRuName(p1Id);
-          const p2Ru = getPlanetRuName(p2Id);
-          const detailText = `${asp.aspectNameRu.toLowerCase()}: ${p1Ru} ↔ ${p2Ru}`;
+          const detailText = `${aspName} между управителем/элементом ${i} дома и управителем/элементом ${targetH} дома (${getPlanetRuName(p1Id)} и ${getPlanetRuName(p2Id)})`;
 
           const conn: HouseAnalysisConnection = {
             sourceHouse: i,
@@ -247,8 +300,6 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
             c.type === 'planet_aspect' &&
             c.sourceHouse === conn.sourceHouse &&
             c.targetHouse === conn.targetHouse &&
-            c.planet === conn.planet &&
-            c.secondaryPlanet === conn.secondaryPlanet &&
             c.aspectName === conn.aspectName
           );
 
@@ -260,8 +311,6 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
             c.type === 'planet_aspect' &&
             c.sourceHouse === conn.sourceHouse &&
             c.targetHouse === conn.targetHouse &&
-            c.planet === conn.planet &&
-            c.secondaryPlanet === conn.secondaryPlanet &&
             c.aspectName === conn.aspectName
           );
 
@@ -272,12 +321,9 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
       }
 
       // If house i is among p2Houses, the direction is from p2's houses (source: i) to p1's houses (target: targetH)
-      // Note: Only add this if p1Houses does not already contain i (to prevent double application when p1 and p2 share a house in common)
       if (p2Houses.has(i) && !p1Houses.has(i)) {
         for (const targetH of p1Houses) {
-          const p1Ru = getPlanetRuName(p1Id);
-          const p2Ru = getPlanetRuName(p2Id);
-          const detailText = `${asp.aspectNameRu.toLowerCase()}: ${p2Ru} ↔ ${p1Ru}`;
+          const detailText = `${aspName} между управителем/элементом ${i} дома и управителем/элементом ${targetH} дома (${getPlanetRuName(p2Id)} и ${getPlanetRuName(p1Id)})`;
 
           const conn: HouseAnalysisConnection = {
             sourceHouse: i,
@@ -293,8 +339,6 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
             c.type === 'planet_aspect' &&
             c.sourceHouse === conn.sourceHouse &&
             c.targetHouse === conn.targetHouse &&
-            c.planet === conn.planet &&
-            c.secondaryPlanet === conn.secondaryPlanet &&
             c.aspectName === conn.aspectName
           );
 
@@ -306,8 +350,6 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
             c.type === 'planet_aspect' &&
             c.sourceHouse === conn.sourceHouse &&
             c.targetHouse === conn.targetHouse &&
-            c.planet === conn.planet &&
-            c.secondaryPlanet === conn.secondaryPlanet &&
             c.aspectName === conn.aspectName
           );
 
@@ -323,11 +365,10 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
       const p1Id = asp.source.id;
       const p2Id = asp.target.id;
 
-      const isP1Angle = ['ascendant', 'descendant', 'mc', 'ic'].includes(p1Id) || p1Id.startsWith('cusp');
-      const isP2Angle = ['ascendant', 'descendant', 'mc', 'ic'].includes(p2Id) || p2Id.startsWith('cusp');
+      const isP1Angle = ['ascendant', 'descendant', 'mc', 'ic'].includes(p1Id) || p1Id.startsWith('cusp') || p1Id.startsWith('house');
+      const isP2Angle = ['ascendant', 'descendant', 'mc', 'ic'].includes(p2Id) || p2Id.startsWith('cusp') || p2Id.startsWith('house');
 
       if (isP1Angle || isP2Angle) {
-        // Determine which house the angle/cusp belongs to
         let targetAngleHouse = i;
         let planetId = '';
         let angleName = '';
@@ -347,7 +388,24 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
           const planetObj = positions.find(p => p.id === planetId);
           const planetHouse = planetObj ? planetObj.house : i;
           
-          const detailText = `${asp.aspectNameRu.toLowerCase()}: ${planetRu} ↔ ${angleName}`;
+          const orbDeg = Math.floor(asp.orb);
+          const orbMin = Math.round((asp.orb - orbDeg) * 60);
+          const orbStr = `${orbDeg}°${orbMin.toString().padStart(2, '0')}′`;
+          const appSepStr = asp.applying ? 'сходящийся' : 'расходящийся';
+
+          // Format Russian name for cusp/angle
+          let pointDisplayName = angleName;
+          if (angleName === 'ASC') pointDisplayName = 'ASC';
+          else if (angleName === 'MC') pointDisplayName = 'MC';
+          else if (angleName === 'DSC') pointDisplayName = 'DSC';
+          else if (angleName === 'IC') pointDisplayName = 'IC';
+          else if (angleName.startsWith('Куспид') || angleName.startsWith('House')) {
+            pointDisplayName = `Куспид ${i} дома`;
+          } else {
+            pointDisplayName = i === 1 ? 'ASC' : i === 4 ? 'IC' : i === 7 ? 'DSC' : i === 10 ? 'MC' : `Куспид ${i} дома`;
+          }
+
+          const detailText = `${pointDisplayName} — ${asp.aspectNameRu} ${planetRu} (орб ${orbStr}, ${appSepStr})`;
           const conn: HouseAnalysisConnection = {
             sourceHouse: i,
             targetHouse: planetHouse,
@@ -378,6 +436,7 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
       houseNumber: i,
       name: `${i} дом`,
       cuspSign,
+      interceptedSigns,
       ruler,
       modernCoRuler,
       rulerHouse,

@@ -1,11 +1,15 @@
 import React, { FC, ReactNode, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Row, Col, AutoComplete, Select, Space } from 'antd';
 import { City, BirthData } from '../types';
 import dayjs from 'dayjs';
 import { Pencil } from 'lucide-react';
-import { calculateAspects, calculateChartAspects } from '../calculations/aspectEngine';
+import { calculateAspects, calculateChartAspects, calculateTransitAspects } from '../calculations/aspectEngine';
+import { fetchNatalChart } from '../api/astroApi';
 import { NatalWheel } from '../components/NatalWheel';
+import { ChartWheel } from '../components/ChartWheel';
 import { CelestialTable } from '../components/CelestialTable';
+import { EssentialDignitiesTable } from '../components/EssentialDignitiesTable';
 import { BindhuTable } from '../components/BindhuTable';
 import { createBindhuMatrix } from '../calculations/bindhuEngine';
 import { getHouseSystemFeatures } from '../calculations/houseSystemConfig';
@@ -277,6 +281,7 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
 
 export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
   const { birthData, setBirthData, enrichedChart, loading, error: fetchError } = useNatal();
+  const navigate = useNavigate();
   
   const [isEditing, setIsEditing] = useState(mode === 'create');
   const [houseSystem, setHouseSystem] = useState<string>(birthData.houseSystem || 'Placidus');
@@ -379,10 +384,34 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
   };
 
   const validate = (values: any) => {
-    const date = dayjs(values.date, 'DD.MM.YYYY', true);
-    const time = dayjs(values.time, 'HH:mm:ss', true);
-    if (!date.isValid()) return 'Неверная дата (DD.MM.YYYY)';
-    if (!time.isValid()) return 'Неверное время (HH:mm:ss)';
+    const dateStr = values.date;
+    const timeStr = values.time;
+
+    // Strict DD.MM.YYYY check with range 1800-2200
+    const dateRegex = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+    const match = dateStr.match(dateRegex);
+    if (!match) {
+      return 'Введите дату в формате ДД.ММ.ГГГГ.';
+    }
+
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const year = parseInt(match[3], 10);
+
+    if (year < 1800 || year > 2200) {
+      return 'Год должен быть в диапазоне от 1800 до 2200.';
+    }
+
+    const parsedDate = dayjs(dateStr, 'DD.MM.YYYY', true);
+    if (!parsedDate.isValid() || parsedDate.year() !== year || parsedDate.month() + 1 !== month || parsedDate.date() !== day) {
+      return 'Указана некорректная дата.';
+    }
+
+    const time = dayjs(timeStr, ['HH:mm', 'HH:mm:ss'], true);
+    if (!time.isValid()) {
+      return 'Неверное время (HH:mm)';
+    }
+
     return null;
   };
 
@@ -398,6 +427,7 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
     setBirthData(updated);
     setHouseSystem(updated.houseSystem);
     setIsEditing(false);
+    navigate('/natal');
   };
 
   if (!isEditing) {
@@ -422,7 +452,10 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
 
     return (
       <PageWrapper title="Натальная карта">
-        <NatalDataDisplay data={birthData} onEdit={() => setIsEditing(true)} />
+        <NatalDataDisplay data={birthData} onEdit={() => {
+          setIsEditing(true);
+          navigate('/create');
+        }} />
         <div style={{ margin: '16px 0' }}>
           <NatalWheel 
             chart={enrichedChart} 
@@ -432,6 +465,7 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
           />
         </div>
         <CelestialTable chart={enrichedChart} />
+        <EssentialDignitiesTable chart={enrichedChart} />
         {features.showBindhu && (
           <BindhuTable 
             matrix={bindhuMatrix} 
@@ -472,14 +506,14 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
     <PageWrapper title="Натальная карта">
       {error && <div style={{ color: 'red', marginBottom: 8}}>Неверно введены данные: {error}</div>}
       <Form form={form} layout="vertical" size="small" onFinish={handleFinish}>
-        <Row gutter={16}>
-          <Col xs={24} md={4}><Form.Item label="Имя" name="name" initialValue={birthData.name} rules={[{ required: true }]}><Input /></Form.Item></Col>
-          <Col xs={24} md={4}>
+        <Row gutter={12}>
+          <Col xs={24} md={8}><Form.Item label="Имя" name="name" initialValue={birthData.name} rules={[{ required: true }]}><Input /></Form.Item></Col>
+          <Col xs={12} md={8}>
             <Form.Item label="Дата (DD.MM.YYYY)" name="date" initialValue={dateValue} rules={[{ required: true }]}>
               <Input value={dateValue} onChange={handleDateChange} maxLength={10} placeholder="DD.MM.YYYY" />
             </Form.Item>
           </Col>
-          <Col xs={24} md={4}>
+          <Col xs={12} md={8}>
             <Form.Item label="Время (HH:mm:ss)" name="time" initialValue={timeValue} rules={[{ required: true }]}>
               <Input value={timeValue} onChange={handleTimeChange} maxLength={8} placeholder="HH:mm:ss" />
             </Form.Item>
@@ -511,123 +545,125 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
           });
         }} />
 
-        <div style={{ marginBottom: 12 }}>
-          <button
-            type="button"
+        <div style={{ marginBottom: 12, borderTop: '1px dashed #d9d9d9', paddingTop: '8px' }}>
+          <div 
             onClick={() => {
               const nextOpen = !manualOpen;
               setManualOpen(nextOpen);
               updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, lonDir, selectedTz, selectedDst, nextOpen);
             }}
             style={{
-              color: '#ff9900',
-              background: 'none',
-              border: 'none',
-              padding: 0,
+              color: '#003366',
               cursor: 'pointer',
               fontSize: '12px',
-              textDecoration: 'underline'
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              userSelect: 'none'
             }}
           >
-            Ввести вручную
-          </button>
+            <span>{manualOpen ? '▼' : '►'}</span>
+            <span>Расширенные настройки места, координат, часового пояса и DST</span>
+          </div>
         </div>
 
         {manualOpen && (
-          <div style={{ background: '#fafafa', border: '1px solid #d9d9d9', padding: '12px', marginBottom: 16 }}>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Широта:</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <Input 
-                  style={{ width: '110px' }} 
-                  value={`${latDeg}°${latMin < 10 ? '0' + latMin : latMin}′`}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const digits = val.replace(/[^\d]/g, ' ');
-                    const parts = digits.trim().split(/\s+/).filter(Boolean);
-                    const d = parseInt(parts[0], 10) || 0;
-                    const m = parseInt(parts[1], 10) || 0;
-                    setLatDeg(d);
-                    setLatMin(m);
-                    updateManualData(d, m, latDir, lonDeg, lonMin, lonDir, selectedTz, selectedDst, true);
-                  }}
-                  placeholder="49°49′"
-                />
+          <div style={{ background: '#f9fbfd', border: '1px solid #b7dcff', padding: '12px', marginBottom: 16, borderRadius: '2px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 4, color: '#003366' }}>Широта:</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Input 
+                    style={{ width: '100px' }} 
+                    value={`${latDeg}°${latMin < 10 ? '0' + latMin : latMin}′`}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const digits = val.replace(/[^\d]/g, ' ');
+                      const parts = digits.trim().split(/\s+/).filter(Boolean);
+                      const d = parseInt(parts[0], 10) || 0;
+                      const m = parseInt(parts[1], 10) || 0;
+                      setLatDeg(d);
+                      setLatMin(m);
+                      updateManualData(d, m, latDir, lonDeg, lonMin, lonDir, selectedTz, selectedDst, true);
+                    }}
+                    placeholder="49°49′"
+                  />
+                  <Select
+                    style={{ width: '110px' }}
+                    value={latDir}
+                    onChange={(val) => {
+                      setLatDir(val);
+                      updateManualData(latDeg, latMin, val, lonDeg, lonMin, lonDir, selectedTz, selectedDst, true);
+                    }}
+                    options={[
+                      { value: 'N', label: 'Север (N)' },
+                      { value: 'S', label: 'Юг (S)' }
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 4, color: '#003366' }}>Долгота:</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Input 
+                    style={{ width: '100px' }} 
+                    value={`${lonDeg}°${lonMin < 10 ? '0' + lonMin : lonMin}′`}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const digits = val.replace(/[^\d]/g, ' ');
+                      const parts = digits.trim().split(/\s+/).filter(Boolean);
+                      const d = parseInt(parts[0], 10) || 0;
+                      const m = parseInt(parts[1], 10) || 0;
+                      setLonDeg(d);
+                      setLonMin(m);
+                      updateManualData(latDeg, latMin, latDir, d, m, lonDir, selectedTz, selectedDst, true);
+                    }}
+                    placeholder="30°07′"
+                  />
+                  <Select
+                    style={{ width: '110px' }}
+                    value={lonDir}
+                    onChange={(val) => {
+                      setLonDir(val);
+                      updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, val, selectedTz, selectedDst, true);
+                    }}
+                    options={[
+                      { value: 'E', label: 'Восток (E)' },
+                      { value: 'W', label: 'Запад (W)' }
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 4, color: '#003366' }}>Часовой пояс:</div>
                 <Select
-                  style={{ width: '110px' }}
-                  value={latDir}
+                  style={{ width: '100%' }}
+                  value={selectedTz}
                   onChange={(val) => {
-                    setLatDir(val);
-                    updateManualData(latDeg, latMin, val, lonDeg, lonMin, lonDir, selectedTz, selectedDst, true);
+                    setSelectedTz(val);
+                    updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, lonDir, val, selectedDst, true);
                   }}
-                  options={[
-                    { value: 'N', label: 'Север' },
-                    { value: 'S', label: 'Юг' }
-                  ]}
+                  options={timezoneOptions}
                 />
               </div>
-            </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Долгота:</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <Input 
-                  style={{ width: '110px' }} 
-                  value={`${lonDeg}°${lonMin < 10 ? '0' + lonMin : lonMin}′`}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const digits = val.replace(/[^\d]/g, ' ');
-                    const parts = digits.trim().split(/\s+/).filter(Boolean);
-                    const d = parseInt(parts[0], 10) || 0;
-                    const m = parseInt(parts[1], 10) || 0;
-                    setLonDeg(d);
-                    setLonMin(m);
-                    updateManualData(latDeg, latMin, latDir, d, m, lonDir, selectedTz, selectedDst, true);
-                  }}
-                  placeholder="30°07′"
-                />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 4, color: '#003366' }}>Летнее/Зимнее время (DST):</div>
                 <Select
-                  style={{ width: '110px' }}
-                  value={lonDir}
+                  style={{ width: '100%' }}
+                  value={selectedDst}
                   onChange={(val) => {
-                    setLonDir(val);
-                    updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, val, selectedTz, selectedDst, true);
+                    setSelectedDst(val);
+                    updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, lonDir, selectedTz, val, true);
                   }}
-                  options={[
-                    { value: 'E', label: 'Восток' },
-                    { value: 'W', label: 'Запад' }
-                  ]}
+                  options={dstOptions}
                 />
               </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 12, flexWrap: 'wrap' }}>
-              <span style={{ minWidth: '90px', fontSize: 13 }}>Часовой пояс:</span>
-              <Select
-                style={{ width: '220px' }}
-                value={selectedTz}
-                onChange={(val) => {
-                  setSelectedTz(val);
-                  updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, lonDir, val, selectedDst, true);
-                }}
-                options={timezoneOptions}
-              />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <div style={{ minWidth: '90px' }}>
-                <div style={{ fontSize: 13 }}>Зимнее:</div>
-                <div style={{ fontSize: '11px', color: '#888' }}>Летнее время</div>
-              </div>
-              <Select
-                style={{ width: '220px' }}
-                value={selectedDst}
-                onChange={(val) => {
-                  setSelectedDst(val);
-                  updateManualData(latDeg, latMin, latDir, lonDeg, lonMin, lonDir, selectedTz, val, true);
-                }}
-                options={dstOptions}
-              />
             </div>
           </div>
         )}
@@ -675,9 +711,227 @@ const DerivedPage = ({ title, content }: { title: string; content: ReactNode }) 
 export const SolarReturn = () => <DerivedPage title="Солярная карта" content="Данные солярного прогноза (используют предрассчитанные натальные планеты, аспекты и углы ASC/MC/IC/DSC)." />;
 export const Progressions = () => <DerivedPage title="Прогрессии" content="Данные вторичных прогрессий (доступ к натальному источнику без повторного вызова Swiss Ephemeris)." />;
 export const Directions = () => <DerivedPage title="Дирекции" content="Данные символических дирекций (опора на единый кэш натальной карты)." />;
-export const Transits = () => <DerivedPage title="Транзиты" content="Данные транзитной карты (натальный фундамент доступен напрямую)." />;
+export const Transits = () => {
+  const { birthData, enrichedChart, loading: natalLoading, error: natalError } = useNatal();
+  
+  const [transitDate, setTransitDate] = useState<string>(() => dayjs().format('YYYY-MM-DD'));
+  const [transitTime, setTransitTime] = useState<string>(() => dayjs().format('HH:mm'));
+  
+  const getInitialLat = () => birthData?.manualOverride?.lat !== undefined ? birthData.manualOverride.lat : (birthData?.birthCity?.lat ?? 55.7558);
+  const getInitialLon = () => birthData?.manualOverride?.lon !== undefined ? birthData.manualOverride.lon : (birthData?.birthCity?.lon ?? 37.6173);
+  
+  const [lat, setLat] = useState<number>(getInitialLat());
+  const [lon, setLon] = useState<number>(getInitialLon());
+  const [timezone, setTimezone] = useState<string>(() => birthData?.birthCity?.timezone || 'Europe/Moscow');
+  const [transitCity, setTransitCity] = useState<City | undefined>(() => birthData?.birthCity);
+  
+  const [transitChart, setTransitChart] = useState<EnrichedChartResult | null>(null);
+  const [transitLoading, setTransitLoading] = useState<boolean>(false);
+  const [transitError, setTransitError] = useState<string | null>(null);
+
+  const calculateTransit = async () => {
+    if (!birthData) return;
+    setTransitLoading(true);
+    setTransitError(null);
+    try {
+      const transitBirthData: BirthData = {
+        ...birthData,
+        date: transitDate,
+        time: transitTime,
+        birthCity: transitCity || {
+          ...birthData.birthCity,
+          lat,
+          lon,
+          timezone
+        }
+      };
+      const data = await fetchNatalChart(transitBirthData);
+      setTransitChart(data);
+      setTransitLoading(false);
+    } catch (err: any) {
+      setTransitError(err.message || 'Failed to calculate transit');
+      setTransitLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    calculateTransit();
+  }, [transitDate, transitTime, lat, lon, timezone, transitCity, birthData?.houseSystem]);
+
+  const handleStepDay = (days: number) => {
+    const newDt = dayjs(`${transitDate} ${transitTime}`).add(days, 'day');
+    setTransitDate(newDt.format('YYYY-MM-DD'));
+    setTransitTime(newDt.format('HH:mm'));
+  };
+
+  const handleStepHour = (hours: number) => {
+    const newDt = dayjs(`${transitDate} ${transitTime}`).add(hours, 'hour');
+    setTransitDate(newDt.format('YYYY-MM-DD'));
+    setTransitTime(newDt.format('HH:mm'));
+  };
+
+  const transitAspects = (transitChart && enrichedChart) ? calculateTransitAspects(transitChart, enrichedChart) : [];
+
+  return (
+    <PageWrapper title="Транзитная карта и аспекты с натальной картой">
+      {natalLoading && <div>Загрузка натального фундамента...</div>}
+      {birthData && <NatalDataDisplay data={birthData} onEdit={() => {}} />}
+
+      <div style={{ padding: '12px', background: '#f9f9f9', border: '1px solid #d9d9d9', marginBottom: '16px', fontSize: 13 }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', margin: '0 0 8px 0' }}>Параметры транзита</h3>
+        
+        <div style={{ marginBottom: '8px' }}>
+          <CityInput 
+            label="Город проживания (транзитный)" 
+            initialCity={transitCity}
+            onSelect={(city) => {
+              setTransitCity(city);
+              setLat(city.lat);
+              setLon(city.lon);
+              if (city.timezone) {
+                setTimezone(city.timezone);
+              }
+            }} 
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '8px' }}>
+          <div>
+            <span style={{ marginRight: 8 }}>Дата:</span>
+            <Input 
+              style={{ width: '130px' }} 
+              value={transitDate} 
+              onChange={(e) => setTransitDate(e.target.value)} 
+            />
+          </div>
+          <div>
+            <span style={{ marginRight: 8 }}>Время:</span>
+            <Input 
+              style={{ width: '90px' }} 
+              value={transitTime} 
+              onChange={(e) => setTransitTime(e.target.value)} 
+            />
+          </div>
+          <Space>
+            <Button onClick={() => handleStepDay(-1)}>-1 день</Button>
+            <Button onClick={() => handleStepHour(-1)}>-1 час</Button>
+            <Button onClick={() => handleStepHour(1)}>+1 час</Button>
+            <Button onClick={() => handleStepDay(1)}>+1 день</Button>
+          </Space>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div>
+            <span style={{ marginRight: 8 }}>Широта:</span>
+            <Input 
+              style={{ width: '90px' }} 
+              value={lat} 
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setLat(val);
+                if (transitCity) {
+                  setTransitCity({ ...transitCity, lat: val });
+                }
+              }} 
+            />
+          </div>
+          <div>
+            <span style={{ marginRight: 8 }}>Долгота:</span>
+            <Input 
+              style={{ width: '90px' }} 
+              value={lon} 
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setLon(val);
+                if (transitCity) {
+                  setTransitCity({ ...transitCity, lon: val });
+                }
+              }} 
+            />
+          </div>
+          <div>
+            <span style={{ marginRight: 8 }}>Часовой пояс:</span>
+            <Select 
+              style={{ width: '150px' }}
+              value={timezone}
+              onChange={(val) => {
+                setTimezone(val);
+                if (transitCity) {
+                  setTransitCity({ ...transitCity, timezone: val });
+                }
+              }}
+              options={timezones.map(tz => ({ value: tz, label: tz }))}
+            />
+          </div>
+        </div>
+      </div>
+
+      {transitLoading && <div>Расчет транзитной карты...</div>}
+      {transitError && <div style={{ color: 'red' }}>Ошибка: {transitError}</div>}
+
+      {transitChart && enrichedChart && (
+        <>
+          <div style={{ margin: '16px 0' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', margin: '0 0 8px 0' }}>Двойное астрологическое колесо (Bi-Wheel)</h3>
+            <ChartWheel
+              mode="biwheel"
+              natalChart={enrichedChart}
+              transitChart={transitChart}
+              transitAspects={transitAspects}
+              selectedObjectId={null}
+              onSelectObject={() => {}}
+            />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', margin: '0 0 8px 0' }}>Транзитные планеты</h3>
+            <CelestialTable chart={transitChart} />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', margin: '0 0 8px 0' }}>Транзитные дома и углы</h3>
+            <HousesWidget chart={transitChart} birthData={{ ...birthData, date: transitDate, time: transitTime }} />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', margin: '0 0 8px 0' }}>Аспекты: Транзит → Натал ({transitAspects.length})</h3>
+            {transitAspects.length === 0 ? (
+              <div style={{ padding: '12px', background: '#fff', border: '1px solid #d9d9d9', fontSize: 13 }}>Нет аспектов в пределах текущего орба.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', background: '#fff' }}>
+                  <thead>
+                    <tr style={{ background: '#f0f5ff', borderBottom: '1px solid #d9d9d9' }}>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Транзитная планета</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Аспект</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Натальная точка</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right' }}>Орб</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center' }}>Характер</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transitAspects.map(asp => (
+                      <tr key={asp.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <td style={{ padding: '6px 8px' }}><strong>{asp.source.name}</strong> ({asp.source.sign} {Math.floor(asp.source.degree || 0)}°)</td>
+                        <td style={{ padding: '6px 8px' }}>{asp.aspectNameRu}</td>
+                        <td style={{ padding: '6px 8px' }}><strong>{asp.target.name}</strong> ({asp.target.sign} {Math.floor(asp.target.degree || 0)}°)</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{asp.orb}°</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center', color: '#666' }}>{asp.interpretationRoles.interactionCharacter}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </PageWrapper>
+  );
+};
 export const Relocation = () => {
   const { birthData, enrichedChart, loading: natalLoading, error: natalError } = useNatal();
+  const navigate = useNavigate();
   
   const getInitialLat = () => birthData?.manualOverride?.lat !== undefined ? birthData.manualOverride.lat : (birthData?.birthCity?.lat ?? 55.7558);
   const getInitialLon = () => birthData?.manualOverride?.lon !== undefined ? birthData.manualOverride.lon : (birthData?.birthCity?.lon ?? 37.6173);
@@ -1008,15 +1262,24 @@ export const Relocation = () => {
   return (
     <PageWrapper title="Релокация">
       <div style={{ marginBottom: '16px', padding: '8px', background: '#f9f9f9', border: '1px solid #d9d9d9' }}>
+        <p style={{ margin: '0 0 4px 0', fontSize: 13, fontWeight: 'bold', color: '#003366' }}>
+          Натальная карта
+        </p>
         <p style={{ margin: '0 0 4px 0', fontSize: 13 }}>
           <strong>Исходная дата рождения:</strong> {dayjs(birthData.date).format('D MMM YYYY')} - {birthData.time}
         </p>
         <p style={{ margin: '0 0 4px 0', fontSize: 13 }}>
           <strong>Исходный город рождения:</strong> {birthData.birthCity?.names?.ru || birthData.birthCity?.name} ({getDisplayLat()}, {getDisplayLon()})
         </p>
-        <p style={{ margin: '0 0 0 0', fontSize: 13, fontWeight: 'bold', color: isRelocationActive ? '#389e0d' : '#003366' }}>
-          {isRelocationActive ? `Релокационная карта: ${relocationStateName}` : 'Натальная карта'}
-        </p>
+        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 'bold', color: isRelocationActive ? '#389e0d' : '#003366' }}>
+            {isRelocationActive ? `Релокационная карта: ${relocationStateName}` : 'Натальная карта'}
+          </p>
+          <Button type="link" onClick={() => navigate('/create')} style={{ color: '#ff9900', padding: 0, height: 'auto', fontSize: '12px' }}>
+            <Pencil size={12} style={{ marginRight: 4 }} />
+            Редактировать
+          </Button>
+        </div>
       </div>
 
       {/* Relocation Control Form Block */}

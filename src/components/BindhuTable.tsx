@@ -121,15 +121,15 @@ export const BindhuTable: React.FC<BindhuTableProps> = ({ matrix, selectedObject
         Структурированная координатная матрица натальной карты (360 позиций). Нажмите на объект для выделения.
       </p>
 
-      <div style={{ overflowX: 'auto', border: '1px solid #d9d9d9', background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'center', minWidth: '950px' }}>
+      <div className="astro-table-responsive-wrapper" style={{ border: '1px solid #d9d9d9', background: '#fff' }}>
+        <table className="astro-table astro-table--dense" style={{ textAlign: 'center', minWidth: '950px' }}>
           <thead>
             <tr style={{ background: '#003366', color: '#fff' }}>
               <th style={{ padding: '4px 6px', border: '1px solid #406699', width: '90px', position: 'sticky', left: 0, zIndex: 2, background: '#003366' }}>
                 Знак \ Градус
               </th>
               {Array.from({ length: 30 }, (_, i) => (
-                <th key={i} style={{ padding: '4px 2px', border: '1px solid #406699', minWidth: '26px' }}>
+                <th key={i} className="astro-mono" style={{ padding: '4px 2px', border: '1px solid #406699', minWidth: '26px' }}>
                   {i}°
                 </th>
               ))}

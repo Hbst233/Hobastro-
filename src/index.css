@@ -1,1 +1,133 @@
 @import "tailwindcss";
+
+:root {
+  --astro-bg: #f7f9fc;
+  --astro-table-head: #003366;
+  --astro-table-head-alt: #1e4d7a;
+  --astro-table-border: #dfe7f3;
+  --astro-table-row-alt: #f9fbff;
+  --astro-cell-hover: #edf7ff;
+  --astro-accent: #ff9900;
+  --astro-accent-strong: #d46b08;
+  --astro-text: #1f2a37;
+  --astro-muted: #58657a;
+  --astro-grid: #e9edf3;
+}
+
+.astro-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--astro-text);
+  background: #fff;
+  letter-spacing: 0.01em;
+}
+
+.astro-table th,
+.astro-table td {
+  border: 1px solid var(--astro-table-border);
+}
+
+.astro-table thead th {
+  padding: 7px 8px;
+  background: var(--astro-table-head);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.astro-table tbody tr:nth-child(even) {
+  background: var(--astro-table-row-alt);
+}
+
+.astro-table tbody td {
+  padding: 7px 8px;
+  vertical-align: middle;
+  background: transparent;
+}
+
+.astro-table--dense {
+  font-size: 11px;
+}
+
+.astro-table--dense thead th,
+.astro-table--dense tbody td {
+  padding: 5px 4px;
+}
+
+.astro-table .astro-mono,
+.astro-table .astro-degree,
+.astro-table .astro-plain-degree {
+  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", "Menlo", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.astro-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25em;
+  font-size: 1.1em;
+  line-height: 1;
+  color: var(--astro-table-head);
+}
+
+.astro-planet-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.astro-planet-cell__glyph {
+  width: 18px;
+  text-align: center;
+  color: var(--astro-table-head);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.astro-object-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.astro-sign-cell,
+.astro-house-cell {
+  font-weight: 600;
+  color: var(--astro-text);
+}
+
+.astro-degree-cell {
+  color: var(--astro-accent-strong);
+  font-weight: 600;
+}
+
+.astro-table .astro-row-selected {
+  background: var(--astro-cell-hover);
+}
+
+.astro-table .astro-table-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (max-width: 768px) {
+  .astro-table {
+    min-width: 600px;
+  }
+  .astro-table-responsive-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 12px;
+  }
+}

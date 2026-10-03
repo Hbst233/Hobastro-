@@ -71,60 +71,83 @@ export function calculateChartAspects(chart: EnrichedChartResult): AspectResult[
     });
   }
 
-  // 2. Add all four core chart angles (ASC, MC, DSC, IC) as first-class objects
-  if (chart.houses && chart.houses.angles) {
-    const anglesData = chart.houses.angles;
-    const cusps = chart.houses.cusps;
-
-    if (anglesData.ascendant) {
-      const asc = anglesData.ascendant;
-      points.push({
-        id: 'ascendant',
-        name: 'ASC',
-        longitude: asc.longitude,
-        sign: asc.sign,
-        degree: asc.degree,
-        house: 1, // ASC is always house 1 cusp
-      });
+  // 2. Add all four core chart angles (ASC, MC, DSC, IC) and all 12 house cusps as first-class objects
+  if (chart.houses) {
+    if (chart.houses.cusps && Array.isArray(chart.houses.cusps)) {
+      for (const cusp of chart.houses.cusps) {
+        const isAngleCusp = (
+          (chart.houses.angles?.ascendant && Math.abs(cusp.longitude - chart.houses.angles.ascendant.longitude) < 0.001) ||
+          (chart.houses.angles?.descendant && Math.abs(cusp.longitude - chart.houses.angles.descendant.longitude) < 0.001) ||
+          (chart.houses.angles?.mc && Math.abs(cusp.longitude - chart.houses.angles.mc.longitude) < 0.001) ||
+          (chart.houses.angles?.ic && Math.abs(cusp.longitude - chart.houses.angles.ic.longitude) < 0.001)
+        );
+        if (!isAngleCusp) {
+          points.push({
+            id: `cusp_${cusp.number}`,
+            name: `Куспид ${cusp.number} дома`,
+            longitude: cusp.longitude,
+            sign: cusp.sign as any,
+            degree: cusp.degree,
+            house: cusp.number,
+          });
+        }
+      }
     }
 
-    if (anglesData.descendant) {
-      const dsc = anglesData.descendant;
-      const dscHouse = Array.isArray(cusps) && cusps.length > 0 ? getHouseForLongitude(dsc.longitude, cusps) : 7;
-      points.push({
-        id: 'descendant',
-        name: 'DSC',
-        longitude: dsc.longitude,
-        sign: dsc.sign,
-        degree: dsc.degree,
-        house: dscHouse,
-      });
-    }
+    if (chart.houses.angles) {
+      const anglesData = chart.houses.angles;
+      const cusps = chart.houses.cusps;
 
-    if (anglesData.mc) {
-      const mc = anglesData.mc;
-      const mcHouse = Array.isArray(cusps) && cusps.length > 0 ? (cusps.find(c => c.number === 10)?.number || getHouseForLongitude(mc.longitude, cusps)) : 10;
-      points.push({
-        id: 'mc',
-        name: 'MC',
-        longitude: mc.longitude,
-        sign: mc.sign,
-        degree: mc.degree,
-        house: mcHouse,
-      });
-    }
+      if (anglesData.ascendant) {
+        const asc = anglesData.ascendant;
+        points.push({
+          id: 'ascendant',
+          name: 'ASC',
+          longitude: asc.longitude,
+          sign: asc.sign,
+          degree: asc.degree,
+          house: 1, // ASC is always house 1 cusp
+        });
+      }
 
-    if (anglesData.ic) {
-      const ic = anglesData.ic;
-      const icHouse = Array.isArray(cusps) && cusps.length > 0 ? (cusps.find(c => c.number === 4)?.number || getHouseForLongitude(ic.longitude, cusps)) : 4;
-      points.push({
-        id: 'ic',
-        name: 'IC',
-        longitude: ic.longitude,
-        sign: ic.sign,
-        degree: ic.degree,
-        house: icHouse,
-      });
+      if (anglesData.descendant) {
+        const dsc = anglesData.descendant;
+        const dscHouse = Array.isArray(cusps) && cusps.length > 0 ? getHouseForLongitude(dsc.longitude, cusps) : 7;
+        points.push({
+          id: 'descendant',
+          name: 'DSC',
+          longitude: dsc.longitude,
+          sign: dsc.sign,
+          degree: dsc.degree,
+          house: dscHouse,
+        });
+      }
+
+      if (anglesData.mc) {
+        const mc = anglesData.mc;
+        const mcHouse = Array.isArray(cusps) && cusps.length > 0 ? (cusps.find(c => c.number === 10)?.number || getHouseForLongitude(mc.longitude, cusps)) : 10;
+        points.push({
+          id: 'mc',
+          name: 'MC',
+          longitude: mc.longitude,
+          sign: mc.sign,
+          degree: mc.degree,
+          house: mcHouse,
+        });
+      }
+
+      if (anglesData.ic) {
+        const ic = anglesData.ic;
+        const icHouse = Array.isArray(cusps) && cusps.length > 0 ? (cusps.find(c => c.number === 4)?.number || getHouseForLongitude(ic.longitude, cusps)) : 4;
+        points.push({
+          id: 'ic',
+          name: 'IC',
+          longitude: ic.longitude,
+          sign: ic.sign,
+          degree: ic.degree,
+          house: icHouse,
+        });
+      }
     }
   }
 
@@ -217,4 +240,79 @@ function getInteractionCharacter(type: AspectType): string {
     case 'trine': return 'гармония / поток / талант';
     case 'opposition': return 'полярность / баланс / противостояние';
   }
+}
+
+/**
+ * Calculates aspects between Transit points (source) and Natal points/angles (target).
+ */
+export function calculateTransitAspects(transitChart: EnrichedChartResult, natalChart: EnrichedChartResult): AspectResult[] {
+  const aspects: AspectResult[] = [];
+  const transitPoints: AspectObjectPoint[] = [];
+  const natalPoints: AspectObjectPoint[] = [];
+
+  // 1. Gather transit planet positions
+  for (const p of transitChart.positions) {
+    transitPoints.push({
+      id: `transit_${p.id}`,
+      name: `Тр. ${p.name}`,
+      longitude: p.longitude,
+      sign: p.sign,
+      degree: p.degree,
+      house: p.house,
+    });
+  }
+
+  // 2. Gather natal planet positions and key angles/cusps
+  for (const p of natalChart.positions) {
+    natalPoints.push({
+      id: p.id,
+      name: p.name,
+      longitude: p.longitude,
+      sign: p.sign,
+      degree: p.degree,
+      house: p.house,
+    });
+  }
+
+  if (natalChart.houses) {
+    if (natalChart.houses.angles) {
+      const a = natalChart.houses.angles;
+      if (a.ascendant) natalPoints.push({ id: 'ascendant', name: 'ASC', longitude: a.ascendant.longitude, sign: a.ascendant.sign, degree: a.ascendant.degree, house: 1 });
+      if (a.descendant) natalPoints.push({ id: 'descendant', name: 'DSC', longitude: a.descendant.longitude, sign: a.descendant.sign, degree: a.descendant.degree, house: 7 });
+      if (a.mc) natalPoints.push({ id: 'mc', name: 'MC', longitude: a.mc.longitude, sign: a.mc.sign, degree: a.mc.degree, house: 10 });
+      if (a.ic) natalPoints.push({ id: 'ic', name: 'IC', longitude: a.ic.longitude, sign: a.ic.sign, degree: a.ic.degree, house: 4 });
+    }
+  }
+
+  // 3. Compute aspects between each transit point and each natal point
+  for (const tPoint of transitPoints) {
+    for (const nPoint of natalPoints) {
+      const actualAngle = calculateAngularDistance(tPoint.longitude, nPoint.longitude);
+
+      for (const def of SUPPORTED_ASPECTS) {
+        const orb = Math.abs(actualAngle - def.angle);
+        if (orb <= MAX_ORB) {
+          aspects.push({
+            id: `${tPoint.id}_${def.type}_${nPoint.id}`,
+            source: tPoint,
+            target: nPoint,
+            aspectType: def.type,
+            aspectNameRu: def.nameRu,
+            exactAngle: def.angle,
+            actualAngle,
+            orb: parseFloat(orb.toFixed(2)),
+            interpretationRoles: {
+              basePlanet: { id: nPoint.id, name: nPoint.name },
+              provokerPlanet: { id: tPoint.id, name: tPoint.name },
+              aspectType: def.type,
+              interactionCharacter: getInteractionCharacter(def.type)
+            }
+          });
+          break; // One aspect per pair
+        }
+      }
+    }
+  }
+
+  return aspects;
 }
