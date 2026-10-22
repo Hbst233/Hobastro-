@@ -52,7 +52,11 @@ const PLANET_NAMES_RU: Record<PlanetId, string> = {
   pluto: 'Плутон',
   north_node: 'Северный узел',
   south_node: 'Южный узел',
-  lilith: 'Лилит'
+  lilith: 'Лилит',
+  ceres: 'Церера',
+  pallas: 'Паллада',
+  juno: 'Юнона',
+  vesta: 'Веста'
 };
 
 export function calculateMatrixAngularDistance(lon1: number, lon2: number): number {

@@ -122,9 +122,9 @@ try {
   console.assert(sextDef?.maxOrb === 5.0, 'matrixAspectPolicy uses 5° for sextile');
   console.log('✓ 14. matrixAspectPolicy uses independent policy orbs.');
 
-  // 15. Existing Aspect Engine not changed
-  console.assert(MAX_ORB === 3.0, 'Existing Aspect Engine MAX_ORB remains 3.0');
-  console.log('✓ 15. Existing Aspect Engine is unmodified.');
+  // 15. Existing Aspect Engine aligned with Astro-Seek
+  console.assert(MAX_ORB === 8.0, 'Existing Aspect Engine MAX_ORB is 8.0');
+  console.log('✓ 15. Existing Aspect Engine is aligned with Astro-Seek orbs.');
 
   console.log('--- ALL HOUSE MATRIX (STEP 9.4) ARCHITECTURE TESTS PASSED SUCCESSFULLY ---');
 } catch (error) {

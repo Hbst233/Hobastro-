@@ -114,18 +114,18 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
 
   // Helper to get house for any longitude or planet/angle
   const getHouseForPoint = (lon: number, pointId?: string): number => {
-    if (pointId === 'ascendant') return 1;
-    if (pointId === 'descendant') {
+    if (pointId === 'ascendant' || pointId === 'cusp_1') return 1;
+    if (pointId === 'descendant' || pointId === 'cusp_7') {
       const dsc = angles?.descendant;
       if (dsc) return getHouseForLongitude(dsc.longitude, cusps);
       return 7;
     }
-    if (pointId === 'mc') {
+    if (pointId === 'mc' || pointId === 'cusp_10') {
       const mc = angles?.mc;
       if (mc) return cusps.find(c => c.number === 10)?.number || getHouseForLongitude(mc.longitude, cusps);
       return 10;
     }
-    if (pointId === 'ic') {
+    if (pointId === 'ic' || pointId === 'cusp_4') {
       const ic = angles?.ic;
       if (ic) return cusps.find(c => c.number === 4)?.number || getHouseForLongitude(ic.longitude, cusps);
       return 4;
@@ -365,8 +365,8 @@ export function calculateHouseAnalysis(chart: EnrichedChartResult): HouseAnalysi
       const p1Id = asp.source.id;
       const p2Id = asp.target.id;
 
-      const isP1Angle = ['ascendant', 'descendant', 'mc', 'ic'].includes(p1Id) || p1Id.startsWith('cusp') || p1Id.startsWith('house');
-      const isP2Angle = ['ascendant', 'descendant', 'mc', 'ic'].includes(p2Id) || p2Id.startsWith('cusp') || p2Id.startsWith('house');
+      const isP1Angle = ['ascendant', 'descendant', 'mc', 'ic', 'cusp_1', 'cusp_4', 'cusp_7', 'cusp_10'].includes(p1Id) || p1Id.startsWith('cusp') || p1Id.startsWith('house');
+      const isP2Angle = ['ascendant', 'descendant', 'mc', 'ic', 'cusp_1', 'cusp_4', 'cusp_7', 'cusp_10'].includes(p2Id) || p2Id.startsWith('cusp') || p2Id.startsWith('house');
 
       if (isP1Angle || isP2Angle) {
         let targetAngleHouse = i;

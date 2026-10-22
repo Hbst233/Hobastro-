@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Playwright MCP diagnostic artifacts
+.playwright-mcp/

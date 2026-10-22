@@ -77,7 +77,11 @@ const PLANET_NAMES_RU: Record<PlanetId, string> = {
   pluto: 'Плутон',
   north_node: 'Северный узел',
   south_node: 'Южный узел',
-  lilith: 'Лилит'
+  lilith: 'Лилит',
+  ceres: 'Церера',
+  pallas: 'Паллада',
+  juno: 'Юнона',
+  vesta: 'Веста'
 };
 
 const ZODIAC_SIGNS_ORDER: ZodiacSignName[] = [

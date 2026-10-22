@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EnrichedChartResult, EnrichedPlanetPosition } from '../calculations/planetLayer';
 import { AspectResult } from '../calculations/aspectEngine';
+import { ArabicPartResult } from '../calculations/arabicParts';
 
 interface ChartWheelProps {
   chart?: EnrichedChartResult; // For natal mode
@@ -12,21 +13,23 @@ interface ChartWheelProps {
   selectedObjectId?: string | null;
   onSelectObject?: (id: string | null) => void;
   theme?: 'dark' | 'light';
+  arabicParts?: ArabicPartResult[];
+  selectedArabicParts?: Record<string, boolean>;
 }
 
 const ZODIAC_SIGNS = [
-  { name: 'Овен', symbol: '♈\uFE0E', element: 'fire', color: '#ff5722' },
-  { name: 'Телец', symbol: '♉\uFE0E', element: 'earth', color: '#66bb6a' },
-  { name: 'Близнецы', symbol: '♊\uFE0E', element: 'air', color: '#29b6f6' },
-  { name: 'Рак', symbol: '♋\uFE0E', element: 'water', color: '#42a5f5' },
-  { name: 'Лев', symbol: '♌\uFE0E', element: 'fire', color: '#ffa726' },
-  { name: 'Дева', symbol: '♍\uFE0E', element: 'earth', color: '#81c784' },
-  { name: 'Весы', symbol: '♎\uFE0E', element: 'air', color: '#81d4fa' },
-  { name: 'Скорпион', symbol: '♏\uFE0E', element: 'water', color: '#26c6da' },
-  { name: 'Стрелец', symbol: '♐\uFE0E', element: 'fire', color: '#ff7043' },
-  { name: 'Козерог', symbol: '♑\uFE0E', element: 'earth', color: '#a1887f' },
-  { name: 'Водолей', symbol: '♒\uFE0E', element: 'air', color: '#4fc3f7' },
-  { name: 'Рыбы', symbol: '♓\uFE0E', element: 'water', color: '#00bcd4' },
+  { name: 'Овен', symbol: '♈\uFE0E', element: 'fire', color: '#d32f2f' },
+  { name: 'Телец', symbol: '♉\uFE0E', element: 'earth', color: '#2e7d32' },
+  { name: 'Близнецы', symbol: '♊\uFE0E', element: 'air', color: '#0288d1' },
+  { name: 'Рак', symbol: '♋\uFE0E', element: 'water', color: '#00838f' },
+  { name: 'Лев', symbol: '♌\uFE0E', element: 'fire', color: '#e65100' },
+  { name: 'Дева', symbol: '♍\uFE0E', element: 'earth', color: '#33691e' },
+  { name: 'Весы', symbol: '♎\uFE0E', element: 'air', color: '#0277bd' },
+  { name: 'Скорпион', symbol: '♏\uFE0E', element: 'water', color: '#006064' },
+  { name: 'Стрелец', symbol: '♐\uFE0E', element: 'fire', color: '#bf360c' },
+  { name: 'Козерог', symbol: '♑\uFE0E', element: 'earth', color: '#3e2723' },
+  { name: 'Водолей', symbol: '♒\uFE0E', element: 'air', color: '#01579b' },
+  { name: 'Рыбы', symbol: '♓\uFE0E', element: 'water', color: '#004d40' },
 ];
 
 const PLANET_SYMBOLS: Record<string, string> = {
@@ -54,7 +57,9 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
   mode = 'natal',
   selectedObjectId,
   onSelectObject,
-  theme = 'light'
+  theme = 'light',
+  arabicParts,
+  selectedArabicParts
 }) => {
   const isLight = theme === 'light';
   const colors = {
@@ -95,13 +100,14 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
   const wheelRadius = center;
 
   // Radii layout strictly matching clone proportions (relative to wheelRadius):
-  // Center -> Aspect Area (0 - 0.55R) -> Planet Track (0.55R - 0.68R) -> House Cusps & Numbers (0.73R - 0.78R) -> Degree Scale (0.78R - 0.83R) -> Zodiac Signs Ring (0.83R - 1.0R)
-  const aspectRadius = wheelRadius * 0.275;
-  const houseBoundaryRadius = mode === 'biwheel' ? wheelRadius * 0.73 : wheelRadius * 0.73;
-  const houseNumberRadius = wheelRadius * 0.755;
-  const natalPlanetOrbitRadius = mode === 'biwheel' ? wheelRadius * 0.61 : wheelRadius * 0.615;
-  const transitPlanetOrbitRadius = mode === 'biwheel' ? wheelRadius * 0.70 : wheelRadius * 0.615;
-  const degreeScaleInnerRadius = wheelRadius * 0.78;
+  // Center -> Aspect Area (0 - 0.48R) -> Planet Track (0.48R - 0.68R) -> House Cusps & Numbers (0.64R - 0.76R) -> Degree Scale (0.76R - 0.83R) -> Zodiac Signs Ring (0.83R - 1.0R)
+  const aspectRadius = wheelRadius * 0.48;
+  const innerNetworkRadius = wheelRadius * 0.25;
+  const houseBoundaryRadius = mode === 'biwheel' ? wheelRadius * 0.68 : wheelRadius * 0.68;
+  const houseNumberRadius = wheelRadius * 0.64;
+  const natalPlanetOrbitRadius = mode === 'biwheel' ? wheelRadius * 0.54 : wheelRadius * 0.55;
+  const transitPlanetOrbitRadius = mode === 'biwheel' ? wheelRadius * 0.63 : wheelRadius * 0.55;
+  const degreeScaleInnerRadius = wheelRadius * 0.76;
   const degreeScaleOuterRadius = wheelRadius * 0.83;
   const zodiacInnerRadius = wheelRadius * 0.83;
   const outerRadius = wheelRadius;
@@ -146,6 +152,36 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
     ? getAdjustedPlanetPositions(transitChart.positions, transitPlanetOrbitRadius) 
     : [];
 
+  const activeArabicParts = (arabicParts || []).filter(p => selectedArabicParts && selectedArabicParts[p.id]);
+
+  const getAdjustedArabicPositions = (parts: ArabicPartResult[], orbitRadius: number) => {
+    const sorted = [...parts].sort((a, b) => a.longitude - b.longitude);
+    const res: { part: ArabicPartResult; x: number; y: number; originalX: number; originalY: number; angle: number; currentRadius: number }[] = [];
+    const minAngleDiff = 6.0;
+
+    sorted.forEach((part, idx) => {
+      let angle = getRotatedAngle(part.longitude);
+      let currentRadius = orbitRadius;
+
+      if (idx > 0) {
+        const prev = res[idx - 1];
+        const diff = (angle - prev.angle + 360) % 360;
+        if (diff < minAngleDiff && diff > -minAngleDiff) {
+          angle = (prev.angle + minAngleDiff) % 360;
+          currentRadius = prev.currentRadius === orbitRadius ? orbitRadius - 14 : orbitRadius;
+        }
+      }
+      const pos = polarToCartesian(angle, currentRadius);
+      const origPos = polarToCartesian(angle, orbitRadius);
+      res.push({ part, x: pos.x, y: pos.y, originalX: origPos.x, originalY: origPos.y, angle, currentRadius });
+    });
+
+    return res;
+  };
+
+  const arabicOrbitRadius = natalPlanetOrbitRadius * 0.82;
+  const arabicAdjustedParts = getAdjustedArabicPositions(activeArabicParts, arabicOrbitRadius);
+
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: '100%', margin: '16px auto', padding: '8px', display: 'flex', justifyContent: 'center', boxSizing: 'border-box', overflow: 'hidden' }}>
       <svg
@@ -163,10 +199,10 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
               {/* 1. Base Background */}
               <circle cx={center} cy={center} r={outerRadius} fill={colors.bg} stroke="none" />
 
-              {/* 2. Degree Scale & Outer Markers */}
-              <circle cx={center} cy={center} r={outerRadius} fill={colors.outerRingBg} stroke="none" />
-              <circle cx={center} cy={center} r={zodiacInnerRadius} fill={colors.containerBg} stroke="none" />
-              <circle cx={center} cy={center} r={degreeScaleInnerRadius} fill="none" stroke="none" />
+               {/* 2. Degree Scale & Outer Markers */}
+               <circle cx={center} cy={center} r={outerRadius} fill={colors.outerRingBg} stroke={isLight ? '#222222' : '#f0f0f0'} strokeWidth="1.5" />
+               <circle cx={center} cy={center} r={zodiacInnerRadius} fill={colors.containerBg} stroke={isLight ? '#222222' : '#f0f0f0'} strokeWidth="1.5" />
+               <circle cx={center} cy={center} r={degreeScaleInnerRadius} fill="none" stroke="none" />
 
         {Array.from({ length: 360 }).map((_, deg) => {
           const rotDeg = getRotatedAngle(deg);
@@ -175,21 +211,21 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
           const isFiveDeg = deg % 5 === 0;
           
           let tickLength = 3;
-          let strokeWidth = 0.5;
-          let strokeColor = colors.textSubtle;
+          let strokeWidth = 0.6;
+          let strokeColor = isLight ? '#555555' : '#aaaaaa';
 
           if (isSignBoundary) {
             tickLength = zodiacInnerRadius - degreeScaleInnerRadius;
-            strokeWidth = 1.2;
-            strokeColor = colors.textMain;
+            strokeWidth = 1.5;
+            strokeColor = isLight ? '#111111' : '#ffffff';
           } else if (isTenDeg) {
             tickLength = 6;
-            strokeWidth = 0.9;
-            strokeColor = colors.textMuted;
+            strokeWidth = 1.1;
+            strokeColor = isLight ? '#333333' : '#dddddd';
           } else if (isFiveDeg) {
             tickLength = 4.5;
-            strokeWidth = 0.7;
-            strokeColor = colors.textSubtle;
+            strokeWidth = 0.8;
+            strokeColor = isLight ? '#555555' : '#bbbbbb';
           }
 
           const pOuter = polarToCartesian(rotDeg, zodiacInnerRadius);
@@ -202,7 +238,7 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
             <g key={deg}>
               <line x1={pOuter.x} y1={pOuter.y} x2={pInner.x} y2={pInner.y} stroke={strokeColor} strokeWidth={strokeWidth} />
               {showNumber && numPos && (
-                <text x={numPos.x} y={numPos.y} textAnchor="middle" dominantBaseline="central" fontSize="5.5" fill={colors.textMuted} fontFamily="sans-serif">
+                <text x={numPos.x} y={numPos.y} textAnchor="middle" dominantBaseline="central" fontSize="5.5" fill={isLight ? '#222222' : '#dddddd'} fontWeight="600" fontFamily="sans-serif">
                   {localDeg}
                 </text>
               )}
@@ -225,8 +261,8 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
 
           return (
             <g key={sign.name}>
-              <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={colors.border} strokeWidth="1" />
-              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize="21.25" fill={sign.color} fontWeight="600">
+              <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={isLight ? '#222222' : '#f0f0f0'} strokeWidth="1.5" />
+              <text x={textPos.x} y={textPos.y} textAnchor="middle" dominantBaseline="central" fontSize="22" fill={sign.color} fontWeight="bold" fontFamily="sans-serif">
                 {sign.symbol}
               </text>
             </g>
@@ -240,8 +276,6 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
 
         {activeChart.houses.cusps.map((cusp, index) => {
           const rotLon = getRotatedAngle(cusp.longitude);
-          const pInner = polarToCartesian(rotLon, aspectRadius);
-          const pOuter = polarToCartesian(rotLon, houseBoundaryRadius);
           const isAngleCusp = cusp.number === 1 || cusp.number === 4 || cusp.number === 7 || cusp.number === 10;
 
           // Calculate house number position between this cusp and the next cusp
@@ -257,14 +291,34 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
           const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
           const romanNum = romanNumerals[cusp.number - 1] || String(cusp.number);
 
+          if (isAngleCusp) {
+            return (
+              <text
+                key={`house-num-${cusp.number}`}
+                x={houseNumPos.x}
+                y={houseNumPos.y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize="8"
+                fontWeight="600"
+                fill={colors.textMuted}
+                fontFamily="sans-serif"
+              >
+                {romanNum}
+              </text>
+            );
+          }
+
+          const pInner = polarToCartesian(rotLon, aspectRadius);
+          const pOuter = polarToCartesian(rotLon, houseBoundaryRadius);
+
           return (
             <g key={cusp.id}>
               <line
                 x1={pInner.x} y1={pInner.y}
                 x2={pOuter.x} y2={pOuter.y}
-                stroke={colors.textSubtle}
-                strokeWidth={isAngleCusp ? "2" : "0.8"}
-                strokeDasharray={isAngleCusp ? undefined : "3,3"}
+                stroke="#888888"
+                strokeWidth="1"
               />
               <text
                 x={houseNumPos.x}
@@ -282,7 +336,7 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
           );
         })}
 
-        {/* ASC / DSC / MC / IC */}
+        {/* ASC / DSC / MC / IC Axes & Labels */}
         {(() => {
           const ascRot = getRotatedAngle(ascLongitude);
           const dscRot = getRotatedAngle(dscLongitude);
@@ -291,22 +345,59 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
 
           const ascPoint = polarToCartesian(ascRot, houseBoundaryRadius);
           const dscPoint = polarToCartesian(dscRot, houseBoundaryRadius);
-          const ascInner = polarToCartesian(ascRot, aspectRadius);
-          const dscInner = polarToCartesian(dscRot, aspectRadius);
           const mcPointOuter = polarToCartesian(mcRot, houseBoundaryRadius);
           const icPointOuter = polarToCartesian(icRot, houseBoundaryRadius);
-          const mcInner = polarToCartesian(mcRot, aspectRadius);
-          const icInner = polarToCartesian(icRot, aspectRadius);
 
-          const ascColor = isLight ? '#ea580c' : '#ff5722';
-          const mcColor = isLight ? '#0284c7' : '#38bdf8';
+          const labelRadius = wheelRadius * 0.80;
+          const ascLabelPos = polarToCartesian(ascRot, labelRadius);
+          const dscLabelPos = polarToCartesian(dscRot, labelRadius);
+          const mcLabelPos = polarToCartesian(mcRot, labelRadius);
+          const icLabelPos = polarToCartesian(icRot, labelRadius);
+
+          const axisColor = isLight ? '#222222' : '#f0f0f0';
+          const plaqueFill = isLight ? '#ffffff' : '#1f1f1f';
+          const plaqueStroke = isLight ? '#222222' : '#f0f0f0';
+
+          const renderAnglePlaque = (pos: { x: number; y: number }, text: string) => {
+            const width = 36;
+            const height = 18;
+            return (
+              <g key={`angle-label-${text}`}>
+                <rect
+                  x={pos.x - width / 2}
+                  y={pos.y - height / 2}
+                  width={width}
+                  height={height}
+                  rx={4}
+                  ry={4}
+                  fill={plaqueFill}
+                  stroke={plaqueStroke}
+                  strokeWidth="1.5"
+                />
+                <text
+                  x={pos.x}
+                  y={pos.y}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize="10"
+                  fontWeight="bold"
+                  fill={axisColor}
+                  fontFamily="sans-serif"
+                >
+                  {text}
+                </text>
+              </g>
+            );
+          };
 
           return (
             <>
-              <line x1={ascInner.x} y1={ascInner.y} x2={ascPoint.x} y2={ascPoint.y} stroke={ascColor} strokeWidth="2.5" />
-              <line x1={dscInner.x} y1={dscInner.y} x2={dscPoint.x} y2={dscPoint.y} stroke={ascColor} strokeWidth="2.5" />
-              <line x1={mcInner.x} y1={mcInner.y} x2={mcPointOuter.x} y2={mcPointOuter.y} stroke={mcColor} strokeWidth="2.5" />
-              <line x1={icInner.x} y1={icInner.y} x2={icPointOuter.x} y2={icPointOuter.y} stroke={mcColor} strokeWidth="2.5" />
+              <line x1={dscPoint.x} y1={dscPoint.y} x2={ascPoint.x} y2={ascPoint.y} stroke={axisColor} strokeWidth="3" />
+              <line x1={icPointOuter.x} y1={icPointOuter.y} x2={mcPointOuter.x} y2={mcPointOuter.y} stroke={axisColor} strokeWidth="3" />
+              {renderAnglePlaque(ascLabelPos, 'ASC')}
+              {renderAnglePlaque(dscLabelPos, 'DSC')}
+              {renderAnglePlaque(mcLabelPos, 'MC')}
+              {renderAnglePlaque(icLabelPos, 'IC')}
             </>
           );
         })()}
@@ -314,7 +405,13 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
         {/* 5. Aspects Network */}
         {(() => {
           const activeAspects = mode === 'biwheel' ? transitAspects : aspects;
-          return activeAspects.map((asp, index) => {
+          const excludedCusps = ['cusp_2', 'cusp_3', 'cusp_5', 'cusp_6', 'cusp_8', 'cusp_9', 'cusp_11', 'cusp_12'];
+          const filteredAspects = activeAspects.filter(
+            asp =>
+              !excludedCusps.includes(asp.source.id) &&
+              !excludedCusps.includes(asp.target.id)
+          );
+          return filteredAspects.map((asp, index) => {
             const p1Rot = getRotatedAngle(asp.source.longitude);
             const p2Rot = getRotatedAngle(asp.target.longitude);
 
@@ -326,18 +423,19 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
               : polarToCartesian(p2Rot, aspectRadius);
 
             let strokeColor = colors.aspectDefault;
-            let strokeWidthVal = 0.85;
-            if (asp.aspectType === 'conjunction' || asp.aspectType === 'trine') {
-              strokeColor = colors.aspectTrine;
-              strokeWidthVal = 1.0;
-            } else if (asp.aspectType === 'sextile') {
-              strokeColor = colors.aspectSextile;
-              strokeWidthVal = 0.9;
-            } else if (asp.aspectType === 'square') {
-              strokeColor = colors.aspectSquare;
-              strokeWidthVal = 1.1;
-            } else if (asp.aspectType === 'opposition') {
-              strokeColor = colors.aspectOpposition;
+            let strokeWidthVal = 1.5;
+
+            if (asp.aspectType === 'opposition' || asp.aspectType === 'square') {
+              strokeColor = '#E53935';
+              strokeWidthVal = 1.5;
+            } else if (asp.aspectType === 'trine' || asp.aspectType === 'sextile') {
+              strokeColor = '#1E88E5';
+              strokeWidthVal = 1.5;
+            } else if (asp.aspectType === 'conjunction') {
+              strokeColor = isLight ? '#222222' : '#f0f0f0';
+              strokeWidthVal = 1.5;
+            } else {
+              strokeColor = '#888888';
               strokeWidthVal = 1.2;
             }
 
@@ -348,7 +446,7 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
                 x2={pt2.x} y2={pt2.y}
                 stroke={strokeColor}
                 strokeWidth={strokeWidthVal}
-                strokeOpacity={mode === 'biwheel' ? 0.7 : 0.6}
+                strokeOpacity={0.85}
                 pointerEvents="none"
               />
             );
@@ -400,6 +498,40 @@ export const ChartWheel: React.FC<ChartWheelProps> = ({
                 {planet.retrograde && <tspan fontSize="15.75" fill="#dc2626" fontWeight="bold" dx="1" dy="-5">R</tspan>}
               </text>
               <text x={x} y={y + 19} textAnchor="middle" dominantBaseline="central" fontSize="8.5" fontFamily="monospace" fill={colors.textMuted} fontWeight="600">
+                {degString}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* 8. Arabic Parts */}
+        {arabicAdjustedParts.map(({ part, x, y, originalX, originalY, currentRadius }) => {
+          const degInt = Math.floor(part.degree);
+          const minInt = Math.floor((part.degree - degInt) * 60);
+          const degString = `${degInt}°${minInt.toString().padStart(2, '0')}'`;
+
+          return (
+            <g
+              key={`arabic-${part.id}`}
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => {
+                const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                setTooltip({
+                  text: `${part.name}: ${part.sign} ${degString}, ${part.house} дом\nФормула: ${part.formula}`,
+                  x: rect.left,
+                  y: rect.top
+                });
+              }}
+              onMouseLeave={() => setTooltip(null)}
+            >
+              {currentRadius !== arabicOrbitRadius && (
+                <line x1={originalX} y1={originalY} x2={x} y2={y} stroke={colors.textSubtle} strokeWidth="0.6" strokeDasharray="2,2" />
+              )}
+              <circle cx={x} cy={y} r="8" fill={isLight ? '#fffbe6' : '#2a2010'} stroke="#faad14" strokeWidth="1.5" />
+              <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize="10" fontFamily="sans-serif" fill="#d46b08" fontWeight="bold">
+                ⨁
+              </text>
+              <text x={x} y={y + 12} textAnchor="middle" dominantBaseline="central" fontSize="7.5" fontFamily="monospace" fill={colors.textMuted} fontWeight="600">
                 {degString}
               </text>
             </g>

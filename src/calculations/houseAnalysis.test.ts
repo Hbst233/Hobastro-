@@ -142,6 +142,14 @@ export function testHouseAnalysis() {
   }
 
   console.log('✓ Directed planet_aspect model verified successfully (9 directed pairs, 18 total directional edges).');
+
+  // Regression test for cusp_1 / cusp_4 / cusp_7 / cusp_10 compatibility in house analysis
+  const angleCompatResult = calculateHouseAnalysis(enriched);
+  const house1Angles = angleCompatResult.houses.find(h => h.houseNumber === 1)?.anglesInHouse;
+  if (!house1Angles || !house1Angles.includes('ASC')) {
+    throw new Error('Expected ASC in house 1 angles');
+  }
+  console.log('✓ Cusp and angle ID compatibility verified in house analysis.');
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

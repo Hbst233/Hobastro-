@@ -6,6 +6,7 @@ export interface AstroPosition {
   id: string;
   name: string;
   longitude: number;
+  latitude?: number;
   speed: number;
   sign: string;
   degree: number;
@@ -105,9 +106,102 @@ export function calculatePositions(birthData: BirthData, houseSystemOverride?: H
       input: payload,
       encoding: 'utf-8'
     });
-    return JSON.parse(result);
-  } catch (error) {
-    console.error('Failed to calculate via swisseph python script:', error);
+    const parsed = JSON.parse(result);
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    return parsed;
+  } catch (error: any) {
+    if (error.stdout) {
+      try {
+        const parsed = JSON.parse(error.stdout.toString().trim());
+        if (parsed.error) {
+          throw new Error(parsed.error);
+        }
+      } catch {}
+    }
+    if (error.stderr) {
+      try {
+        const match = error.stderr.toString().match(/\{.*?\}/s);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (parsed.error) {
+            throw new Error(parsed.error);
+          }
+        }
+      } catch {}
+    }
+    throw error;
+  }
+}
+
+export function calculateRelocation(
+  natalChart: AstroCalculationResult,
+  targetLat: number,
+  targetLon: number,
+  houseSystemOverride?: HouseSystemType
+): AstroCalculationResult {
+  const scriptPath = path.resolve('src/calculations/swisseph_calc.py');
+  const system = houseSystemOverride || (natalChart.houses?.system as HouseSystemType) || 'Placidus';
+
+  const payload = JSON.stringify({
+    julianDay: natalChart.julianDay,
+    lat: targetLat,
+    lon: targetLon,
+    houseSystem: system,
+    utc: natalChart.utc
+  });
+
+  try {
+    const result = execSync(`python3 "${scriptPath}"`, {
+      input: payload,
+      encoding: 'utf-8'
+    });
+    const parsed: AstroCalculationResult = JSON.parse(result);
+
+    const natalMap = new Map(natalChart.positions.map(p => [p.id, p]));
+    const preservedPositions = parsed.positions.map(pos => {
+      const nat = natalMap.get(pos.id);
+      if (nat) {
+        return {
+          ...pos,
+          longitude: nat.longitude,
+          latitude: nat.latitude,
+          speed: nat.speed,
+          sign: nat.sign,
+          degree: nat.degree,
+          retrograde: nat.retrograde
+        };
+      }
+      return pos;
+    });
+
+    return {
+      utc: natalChart.utc,
+      julianDay: natalChart.julianDay,
+      positions: preservedPositions,
+      houses: parsed.houses
+    };
+  } catch (error: any) {
+    if (error.stdout) {
+      try {
+        const parsed = JSON.parse(error.stdout.toString().trim());
+        if (parsed.error) {
+          throw new Error(parsed.error);
+        }
+      } catch {}
+    }
+    if (error.stderr) {
+      try {
+        const match = error.stderr.toString().match(/\{.*?\}/s);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (parsed.error) {
+            throw new Error(parsed.error);
+          }
+        }
+      } catch {}
+    }
     throw error;
   }
 }

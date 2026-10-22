@@ -1,6 +1,7 @@
 import React from 'react';
 import { EnrichedChartResult } from '../calculations/planetLayer';
 import { AspectResult } from '../calculations/aspectEngine';
+import { ArabicPartResult } from '../calculations/arabicParts';
 import { ChartWheel } from './ChartWheel';
 
 interface NatalWheelProps {
@@ -9,9 +10,11 @@ interface NatalWheelProps {
   selectedObjectId?: string | null;
   onSelectObject?: (id: string | null) => void;
   theme?: 'dark' | 'light';
+  arabicParts?: ArabicPartResult[];
+  selectedArabicParts?: Record<string, boolean>;
 }
 
-export const NatalWheel: React.FC<NatalWheelProps> = ({ chart, aspects, selectedObjectId, onSelectObject, theme = 'light' }) => {
+export const NatalWheel: React.FC<NatalWheelProps> = ({ chart, aspects, selectedObjectId, onSelectObject, theme = 'light', arabicParts, selectedArabicParts }) => {
   return (
     <ChartWheel
       chart={chart}
@@ -20,6 +23,8 @@ export const NatalWheel: React.FC<NatalWheelProps> = ({ chart, aspects, selected
       selectedObjectId={selectedObjectId}
       onSelectObject={onSelectObject}
       theme={theme}
+      arabicParts={arabicParts}
+      selectedArabicParts={selectedArabicParts}
     />
   );
 };

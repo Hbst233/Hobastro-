@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { EnrichedChartResult, EnrichedPlanetPosition } from '../calculations/planetLayer';
-import { getEssentialDignity } from '../calculations/rulerships';
 
 interface CelestialTableProps {
   chart: EnrichedChartResult;
@@ -108,46 +107,25 @@ export const CelestialTable: React.FC<CelestialTableProps> = ({ chart }) => {
       const house = getObjectHouse(pos.longitude, chart.houses.cusps);
       const glyph = PLANET_SYMBOLS[pos.id] || '•';
 
-      const ed = getEssentialDignity(pos.id as any, pos.longitude, true);
-      const isNotApp = ed.dignities.includes('not_applicable');
-      const formatScore = (score: number) => {
-        if (isNotApp) return '—';
-        return score > 0 ? `+${score}` : `${score}`;
-      };
-
       return {
         ...pos,
         glyph,
         house,
-        ed: {
-          domicile: ed.domicileRulerName,
-          exaltation: ed.exaltationRulerName,
-          triplicity: ed.triplicityRulerName,
-          term: ed.termRulerName,
-          face: ed.faceRulerName,
-          detriment: ed.detrimentRulerName,
-          fall: ed.fallRulerName,
-          peregrine: ed.peregrineStatus,
-          total: formatScore(ed.totalScore),
-          isNotApp,
-        }
       };
     }).filter((r): r is NonNullable<typeof r> => r !== null);
   }, [chart]);
 
   const clipboardText = useMemo(() => {
-    const lines = ['Небесные тела и эссенциальные статусы:'];
+    const lines = ['Небесные тела и расчётные точки:'];
     for (const row of rows) {
       const isModern = row.id === 'uranus' || row.id === 'neptune' || row.id === 'pluto';
       const houses = isModern ? ((row as any).modernRulesHouses ?? []) : (row.rulesHouses ?? []);
       const houseStr = houses.length > 0 ? ` Управляет домами: ${houses.join(', ')}` : '';
       const speedStr = `${row.speed > 0 ? `+${row.speed.toFixed(2)}` : row.speed.toFixed(2)}°/д`;
-      const retroStr = row.retrograde ? 'R' : 'Прямой';
+      const movementStr = row.retrograde ? 'Ретроградное' : 'Прямое';
       
       lines.push(
-        `- ${row.name} (${row.sign} ${formatDegree(row.degree)}): Дом ${row.house}, Скорость ${speedStr}, ${retroStr}.${houseStr} | ` +
-        `Обитель: ${row.ed.domicile}, Экзальтация: ${row.ed.exaltation}, Триплицитет: ${row.ed.triplicity}, Терм: ${row.ed.term}, ` +
-        `Фейс: ${row.ed.face}, Изгнание: ${row.ed.detriment}, Падение: ${row.ed.fall}, Перегрин: ${row.ed.peregrine}, Итог: ${row.ed.total}`
+        `- ${row.name}: ${formatDegree(row.degree)}, ${row.sign}, Дом ${row.house}, Управляет домом: ${houses.length > 0 ? houses.join(', ') : '—'}, Скорость: ${speedStr}, Движение: ${movementStr}`
       );
     }
     return lines.join('\n');
@@ -213,21 +191,12 @@ export const CelestialTable: React.FC<CelestialTableProps> = ({ chart }) => {
               <thead>
                 <tr>
                   <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Объект</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Знак</th>
                   <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Градус</th>
+                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Знак</th>
                   <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Дом</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Управляет домами</th>
+                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Управляет домом</th>
                   <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Скорость</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Ретро</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Обитель</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Экзальтация</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Триплицитет</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Терм</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Фейс</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Изгнание</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Падение</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Перегрин</th>
-                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9', textAlign: 'center' }}>Эссенциальная сила</th>
+                  <th style={{ padding: '6px 8px', borderBottom: '1px solid #d9d9d9' }}>Движение</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,9 +206,9 @@ export const CelestialTable: React.FC<CelestialTableProps> = ({ chart }) => {
                       <span className="astro-planet-cell__glyph astro-glyph">{row.glyph}</span>
                       <span className="astro-object-name">{row.name}</span>
                     </td>
-                    <td className="astro-sign-cell" style={{ padding: '6px 8px' }}>{row.sign}</td>
                     <td className="astro-degree astro-degree-cell astro-mono" style={{ padding: '6px 8px' }}>{formatDegree(row.degree)}</td>
-                    <td className="astro-house-cell" style={{ padding: '6px 8px', color: '#003366' }}>{row.house} дом</td>
+                    <td className="astro-sign-cell" style={{ padding: '6px 8px' }}>{row.sign}</td>
+                    <td className="astro-house-cell" style={{ padding: '6px 8px', color: '#003366' }}>{row.house}</td>
                     <td style={{ padding: '6px 8px' }}>
                       {(() => {
                         const isModern = row.id === 'uranus' || row.id === 'neptune' || row.id === 'pluto';
@@ -247,24 +216,15 @@ export const CelestialTable: React.FC<CelestialTableProps> = ({ chart }) => {
                           ? ((row as any).modernRulesHouses ?? []) 
                           : (row.rulesHouses ?? []);
                         if (houses.length === 0) return '—';
-                        return `${houses.join(', ')} ${houses.length === 1 ? 'дом' : 'дома'}`;
+                        return houses.join(', ');
                       })()}
                     </td>
                     <td className="astro-mono" style={{ padding: '6px 8px', color: row.speed < 0 ? '#ff4d4f' : 'inherit' }}>
                       {row.speed > 0 ? `+${row.speed.toFixed(2)}` : row.speed.toFixed(2)}°/д
                     </td>
                     <td style={{ padding: '6px 8px', fontWeight: row.retrograde ? 'bold' : 'normal', color: row.retrograde ? '#ff4d4f' : '#52c41a' }}>
-                      {row.retrograde ? 'R' : 'Прямой'}
+                      {row.retrograde ? 'Ретроградное' : 'Прямое'}
                     </td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.domicile}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.exaltation}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.triplicity}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.term}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.face}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.detriment}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.fall}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>{row.ed.peregrine}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', color: row.ed.isNotApp ? '#8c8c8c' : '#003366' }}>{row.ed.total}</td>
                   </tr>
                 ))}
               </tbody>

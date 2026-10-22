@@ -5,7 +5,7 @@ import { City, BirthData } from '../types';
 import dayjs from 'dayjs';
 import { Pencil } from 'lucide-react';
 import { calculateAspects, calculateChartAspects, calculateTransitAspects } from '../calculations/aspectEngine';
-import { fetchNatalChart } from '../api/astroApi';
+import { fetchNatalChart, fetchRelocationChart } from '../api/astroApi';
 import { NatalWheel } from '../components/NatalWheel';
 import { ChartWheel } from '../components/ChartWheel';
 import { CelestialTable } from '../components/CelestialTable';
@@ -19,6 +19,8 @@ import { createHouseMatrix } from '../calculations/houseMatrixEngine';
 import { HouseMatrixWidget } from '../components/HouseMatrixWidget';
 import { HousesWidget } from '../components/HousesWidget';
 import { AspectsWidget } from '../components/AspectsWidget';
+import { calculateArabicParts } from '../calculations/arabicParts';
+import { ArabicPartsWidget } from '../components/ArabicPartsWidget';
 import { useNatal } from '../calculations/natalSource';
 import { EnrichedChartResult, EnrichedPlanetPosition, getHouseForLongitude } from '../calculations/planetLayer';
 
@@ -297,6 +299,11 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
 
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
+  const [selectedArabicParts, setSelectedArabicParts] = useState<Record<string, boolean>>({});
+  const handleToggleArabicPart = (id: string) => {
+    setSelectedArabicParts(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const [manualOpen, setManualOpen] = useState<boolean>(birthData.manualOverride?.enabled || false);
 
   const [shestopalovEnabled, setShestopalovEnabled] = useState<boolean>(() => {
@@ -440,6 +447,7 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
     if (!enrichedChart) return null;
 
     const aspects = calculateChartAspects(enrichedChart);
+    const arabicPartsCollection = calculateArabicParts(enrichedChart);
     const bindhuMatrix = createBindhuMatrix(enrichedChart, aspects);
     const houseMatrix = createHouseMatrix(enrichedChart);
     const features = getHouseSystemFeatures(birthData.houseSystem);
@@ -462,6 +470,8 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
             aspects={aspects} 
             selectedObjectId={selectedObjectId}
             onSelectObject={setSelectedObjectId}
+            arabicParts={arabicPartsCollection.parts}
+            selectedArabicParts={selectedArabicParts}
           />
         </div>
         <CelestialTable chart={enrichedChart} />
@@ -482,6 +492,7 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
         )}
         <HousesWidget chart={enrichedChart} birthData={birthData} />
         <AspectsWidget chart={enrichedChart} aspects={aspects} />
+        <ArabicPartsWidget chart={enrichedChart} selectedParts={selectedArabicParts} onTogglePart={handleToggleArabicPart} />
         {features.showEventFormulas && (
           <div style={{ marginTop: '16px', padding: '16px', background: '#f9f9f9', border: '1px solid #d9d9d9' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#003366', margin: '0 0 8px 0' }}>
@@ -709,7 +720,24 @@ const DerivedPage = ({ title, content }: { title: string; content: ReactNode }) 
 };
 
 export const SolarReturn = () => <DerivedPage title="Солярная карта" content="Данные солярного прогноза (используют предрассчитанные натальные планеты, аспекты и углы ASC/MC/IC/DSC)." />;
-export const Progressions = () => <DerivedPage title="Прогрессии" content="Данные вторичных прогрессий (доступ к натальному источнику без повторного вызова Swiss Ephemeris)." />;
+export const Progressions = () => {
+  const { birthData, enrichedChart, loading, error } = useNatal();
+  if (loading) return <PageWrapper title="Прогрессии">Загрузка натальных данных...</PageWrapper>;
+  if (error || !birthData || !enrichedChart) return <PageWrapper title="Прогрессии">Данные не найдены.</PageWrapper>;
+  const aspects = calculateChartAspects(enrichedChart);
+  return (
+    <PageWrapper title="Прогрессии (Вторичные прогрессии)">
+      <NatalDataDisplay data={birthData} onEdit={() => {}} />
+      <div style={{ padding: '8px 12px', background: '#f0f5ff', border: '1px solid #91caff', marginBottom: 16, fontSize: 12, color: '#003366' }}>
+        <strong>Прогрессивный метод:</strong> Использован предрассчитанный натальный фундамент для расчёта позиций, домов, аспектов и управлений.
+      </div>
+      <CelestialTable chart={enrichedChart} />
+      <EssentialDignitiesTable chart={enrichedChart} />
+      <HousesWidget chart={enrichedChart} birthData={birthData} />
+      <AspectsWidget chart={enrichedChart} aspects={aspects} />
+    </PageWrapper>
+  );
+};
 export const Directions = () => <DerivedPage title="Дирекции" content="Данные символических дирекций (опора на единый кэш натальной карты)." />;
 export const Transits = () => {
   const { birthData, enrichedChart, loading: natalLoading, error: natalError } = useNatal();
@@ -1126,6 +1154,10 @@ export const Relocation = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setRelocationChart(null);
+  }, [enrichedChart]);
+
+  useEffect(() => {
     if (birthData && !relocationChart) {
       setCityInput(birthData.birthCity?.names?.ru || birthData.birthCity?.name || '');
       setSelectedCity(birthData.birthCity || null);
@@ -1160,6 +1192,10 @@ export const Relocation = () => {
       setError('Пожалуйста, введите или выберите город переезда');
       return;
     }
+    if (!enrichedChart) {
+      setError('Исходная натальная карта не загружена');
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -1167,72 +1203,19 @@ export const Relocation = () => {
       const latDec = latDir === 'S' ? -(latDeg + latMin / 60) : (latDeg + latMin / 60);
       const lonDec = lonDir === 'W' ? -(lonDeg + lonMin / 60) : (lonDeg + lonMin / 60);
 
-      const payload = {
-        date: birthData.date,
-        time: birthData.time,
-        birthCity: {
-          ...(selectedCity || birthData.birthCity),
-          name: cityInput,
-          lat: latDec,
-          lon: lonDec,
-          timezone: (selectedCity?.timezone || birthData.birthCity.timezone)
-        },
-        houseSystem: birthData.houseSystem || 'Placidus',
-        manualOverride: {
-          enabled: true,
-          lat: latDec,
-          latDir: latDir,
-          lon: lonDec,
-          lonDir: lonDir,
-          timezone: timezoneInput,
-          dst: 'auto'
-        }
-      };
-
-      const res = await fetch('/api/natal-chart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        throw new Error('Ошибка расчёта релокационной карты');
-      }
-
-      const chartData = await res.json();
-      
-      // Preserve natal planet longitudes exactly as per rule 4
-      if (enrichedChart && enrichedChart.positions) {
-        const natalMap = new Map<string, EnrichedPlanetPosition>(enrichedChart.positions.map(p => [p.id, p]));
-        chartData.positions = chartData.positions.map((pos: EnrichedPlanetPosition) => {
-          const nat = natalMap.get(pos.id);
-          if (nat) {
-            return {
-              ...pos,
-              longitude: nat.longitude,
-              sign: nat.sign,
-              degree: nat.degree,
-              retrograde: nat.retrograde,
-              speed: nat.speed
-            };
-          }
-          return pos;
-        });
-
-        // Recalculate house placement and ruler formulas for planets using the new house cusps
-        const updatedPositions = chartData.positions.map((pos: any) => {
-          const house = getHouseForLongitude(pos.longitude, chartData.houses.cusps);
-          return { ...pos, house };
-        });
-        chartData.positions = updatedPositions;
-      }
+      const chartData = await fetchRelocationChart(
+        enrichedChart,
+        latDec,
+        lonDec,
+        birthData.houseSystem || 'Placidus'
+      );
 
       setRelocationChart(chartData);
       setRelocationStateName(cityInput);
       setLoading(false);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Ошибка расчёта');
+      setError(err.message || 'Ошибка расчёта релокационной карты');
       setLoading(false);
     }
   };

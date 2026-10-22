@@ -22,4 +22,7 @@ const shestopalovFeatures = getHouseSystemFeatures('KochShestopalov');
 console.assert(shestopalovFeatures.showHouseFormulas === true, 'KochShestopalov showHouseFormulas must be true');
 console.assert(shestopalovFeatures.showEventFormulas === false, 'KochShestopalov showEventFormulas must be false');
 
+const kochFeatures = getHouseSystemFeatures('Koch');
+console.assert(kochFeatures.showShestopalov === true, 'Koch showShestopalov must be true');
+
 console.log('✓ All house system configuration feature tests passed successfully.');

@@ -198,11 +198,11 @@ if (TRADITIONAL_RULERSHIPS['Овен'] === 'mars' && TRADITIONAL_RULERSHIPS['В�
   throw new Error('Traditional rulers mapping test failed.');
 }
 
-// Test independence from existing Aspect Engine (existing Aspect Engine still uses MAX_ORB = 3.0)
-if (MAX_ORB === 3.0) {
-  console.log('✓ Existing Aspect Engine MAX_ORB remains 3.0 (independent).');
+// Test independence from existing Aspect Engine (existing Aspect Engine uses MAX_ORB = 8.0)
+if (MAX_ORB === 8.0) {
+  console.log('✓ Existing Aspect Engine MAX_ORB is 8.0 (independent).');
 } else {
-  throw new Error('Existing Aspect Engine MAX_ORB was modified!');
+  throw new Error('Existing Aspect Engine MAX_ORB unexpected value!');
 }
 
 console.log('--- ALL MATRIX ASPECT POLICY ARCHITECTURE TESTS PASSED SUCCESSFULLY ---');

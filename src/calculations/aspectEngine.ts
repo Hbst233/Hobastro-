@@ -16,7 +16,49 @@ export const SUPPORTED_ASPECTS: AspectDefinition[] = [
   { type: 'opposition', nameRu: 'Оппозиция', angle: 180 },
 ];
 
-export const MAX_ORB = 3.0;
+export const MAX_ORB = 8.0;
+
+function getMaxOrb(p1: AspectObjectPoint, p2: AspectObjectPoint, aspectType: AspectType): number {
+  const isLuminary = (id: string) => id === 'sun' || id === 'moon';
+  const isAngle = (id: string) => id === 'cusp_1' || id === 'cusp_4' || id === 'cusp_7' || id === 'cusp_10';
+  const isSpecialPoint = (id: string) => ['north_node', 'lilith', 'chiron', 'fortune', 'vertex'].includes(id);
+  const isPlanet = (id: string) => ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].includes(id);
+  const isIntermediateCusp = (id: string) => id.startsWith('cusp_') && !isAngle(id);
+
+  if (isIntermediateCusp(p1.id) || isIntermediateCusp(p2.id)) {
+    return 3.0;
+  }
+  if (isLuminary(p1.id) || isLuminary(p2.id)) {
+    return 8.0;
+  }
+  if (isAngle(p1.id) || isAngle(p2.id)) {
+    return 6.5;
+  }
+  if (isSpecialPoint(p1.id) || isSpecialPoint(p2.id)) {
+    return 7.5;
+  }
+  if (isPlanet(p1.id) && isPlanet(p2.id)) {
+    return 8.0;
+  }
+  return 6.0;
+}
+
+function getPointSpeed(point: AspectObjectPoint, pos: { speed?: number } | undefined, chart: EnrichedChartResult): number {
+  if (pos && typeof pos.speed === 'number') {
+    return pos.speed;
+  }
+  if (point.id.startsWith('cusp_') || point.id === 'vertex') {
+    return 360.9856;
+  }
+  if (point.id === 'fortune') {
+    const sun = chart.positions.find(p => p.id === 'sun');
+    const moon = chart.positions.find(p => p.id === 'moon');
+    const sunSpeed = sun?.speed || 1.0;
+    const moonSpeed = moon?.speed || 13.0;
+    return 360.9856 + moonSpeed - sunSpeed;
+  }
+  return 0.0;
+}
 
 export interface AspectObjectPoint {
   id: string;
@@ -50,6 +92,10 @@ export function calculateAngularDistance(lon1: number, lon2: number): number {
   return diff > 180 ? 360 - diff : diff;
 }
 
+function normalizeLon(lon: number): number {
+  return ((lon % 360) + 360) % 360;
+}
+
 /**
  * Enhanced aspect calculation layer that integrates both planet positions
  * and chart angles (ASC, MC) from enrichedChart in Placidus system.
@@ -71,83 +117,23 @@ export function calculateChartAspects(chart: EnrichedChartResult): AspectResult[
     });
   }
 
-  // 2. Add all four core chart angles (ASC, MC, DSC, IC) and all 12 house cusps as first-class objects
-  if (chart.houses) {
-    if (chart.houses.cusps && Array.isArray(chart.houses.cusps)) {
-      for (const cusp of chart.houses.cusps) {
-        const isAngleCusp = (
-          (chart.houses.angles?.ascendant && Math.abs(cusp.longitude - chart.houses.angles.ascendant.longitude) < 0.001) ||
-          (chart.houses.angles?.descendant && Math.abs(cusp.longitude - chart.houses.angles.descendant.longitude) < 0.001) ||
-          (chart.houses.angles?.mc && Math.abs(cusp.longitude - chart.houses.angles.mc.longitude) < 0.001) ||
-          (chart.houses.angles?.ic && Math.abs(cusp.longitude - chart.houses.angles.ic.longitude) < 0.001)
-        );
-        if (!isAngleCusp) {
-          points.push({
-            id: `cusp_${cusp.number}`,
-            name: `Куспид ${cusp.number} дома`,
-            longitude: cusp.longitude,
-            sign: cusp.sign as any,
-            degree: cusp.degree,
-            house: cusp.number,
-          });
-        }
-      }
-    }
+  // 2. Add all 12 house cusps (cusp_1 through cusp_12)
+  if (chart.houses && Array.isArray(chart.houses.cusps)) {
+    for (const c of chart.houses.cusps) {
+      let cuspName = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][c.number - 1] || `H${c.number}`;
+      if (c.number === 1) cuspName = 'ASC';
+      else if (c.number === 4) cuspName = 'IC';
+      else if (c.number === 7) cuspName = 'DSC';
+      else if (c.number === 10) cuspName = 'MC';
 
-    if (chart.houses.angles) {
-      const anglesData = chart.houses.angles;
-      const cusps = chart.houses.cusps;
-
-      if (anglesData.ascendant) {
-        const asc = anglesData.ascendant;
-        points.push({
-          id: 'ascendant',
-          name: 'ASC',
-          longitude: asc.longitude,
-          sign: asc.sign,
-          degree: asc.degree,
-          house: 1, // ASC is always house 1 cusp
-        });
-      }
-
-      if (anglesData.descendant) {
-        const dsc = anglesData.descendant;
-        const dscHouse = Array.isArray(cusps) && cusps.length > 0 ? getHouseForLongitude(dsc.longitude, cusps) : 7;
-        points.push({
-          id: 'descendant',
-          name: 'DSC',
-          longitude: dsc.longitude,
-          sign: dsc.sign,
-          degree: dsc.degree,
-          house: dscHouse,
-        });
-      }
-
-      if (anglesData.mc) {
-        const mc = anglesData.mc;
-        const mcHouse = Array.isArray(cusps) && cusps.length > 0 ? (cusps.find(c => c.number === 10)?.number || getHouseForLongitude(mc.longitude, cusps)) : 10;
-        points.push({
-          id: 'mc',
-          name: 'MC',
-          longitude: mc.longitude,
-          sign: mc.sign,
-          degree: mc.degree,
-          house: mcHouse,
-        });
-      }
-
-      if (anglesData.ic) {
-        const ic = anglesData.ic;
-        const icHouse = Array.isArray(cusps) && cusps.length > 0 ? (cusps.find(c => c.number === 4)?.number || getHouseForLongitude(ic.longitude, cusps)) : 4;
-        points.push({
-          id: 'ic',
-          name: 'IC',
-          longitude: ic.longitude,
-          sign: ic.sign,
-          degree: ic.degree,
-          house: icHouse,
-        });
-      }
+      points.push({
+        id: `cusp_${c.number}`,
+        name: cuspName,
+        longitude: c.longitude,
+        sign: c.sign,
+        degree: c.degree,
+        house: c.number,
+      });
     }
   }
 
@@ -168,20 +154,27 @@ export function calculateChartAspects(chart: EnrichedChartResult): AspectResult[
 
       for (const def of SUPPORTED_ASPECTS) {
         const orb = Math.abs(distance - def.angle);
-        // Specific custom orb limits for certain sensitive points/aspects if needed, or default MAX_ORB = 7.0 for extended validation tests
-        const effectiveMaxOrb = 7.0;
+        const effectiveMaxOrb = getMaxOrb(p1, p2, def.type);
         if (orb <= effectiveMaxOrb) {
           // Determine applying / separating using actual speeds of both points
           let applying: boolean | undefined = undefined;
           const pos1 = chart.positions.find(p => p.id === p1.id);
           const pos2 = chart.positions.find(p => p.id === p2.id);
 
-          const speed1 = pos1 ? (pos1.speed || 0) : 0;
-          const speed2 = pos2 ? (pos2.speed || 0) : 0;
+          const speed1 = getPointSpeed(p1, pos1, chart);
+          const speed2 = getPointSpeed(p2, pos2, chart);
 
-          const dt = 0.001;
-          const distFuture = calculateAngularDistance(p1.longitude + speed1 * dt, p2.longitude + speed2 * dt);
-          applying = distFuture < distance;
+           const dt = 0.001;
+           const p1Future = normalizeLon(p1.longitude + speed1 * dt);
+           const p2Future = normalizeLon(p2.longitude + speed2 * dt);
+           const distFuture = calculateAngularDistance(p1Future, p2Future);
+           const currentOrb = Math.abs(distance - def.angle);
+           const futureOrb = Math.abs(distFuture - def.angle);
+           if (Math.abs(futureOrb - currentOrb) < 1e-6) {
+             applying = undefined;
+           } else {
+             applying = futureOrb < currentOrb;
+           }
 
           aspects.push({
             id: `${p1.id}-${def.type}-${p2.id}`,
@@ -274,13 +267,22 @@ export function calculateTransitAspects(transitChart: EnrichedChartResult, natal
     });
   }
 
-  if (natalChart.houses) {
-    if (natalChart.houses.angles) {
-      const a = natalChart.houses.angles;
-      if (a.ascendant) natalPoints.push({ id: 'ascendant', name: 'ASC', longitude: a.ascendant.longitude, sign: a.ascendant.sign, degree: a.ascendant.degree, house: 1 });
-      if (a.descendant) natalPoints.push({ id: 'descendant', name: 'DSC', longitude: a.descendant.longitude, sign: a.descendant.sign, degree: a.descendant.degree, house: 7 });
-      if (a.mc) natalPoints.push({ id: 'mc', name: 'MC', longitude: a.mc.longitude, sign: a.mc.sign, degree: a.mc.degree, house: 10 });
-      if (a.ic) natalPoints.push({ id: 'ic', name: 'IC', longitude: a.ic.longitude, sign: a.ic.sign, degree: a.ic.degree, house: 4 });
+  if (natalChart.houses && Array.isArray(natalChart.houses.cusps)) {
+    for (const c of natalChart.houses.cusps) {
+      let cuspName = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][c.number - 1] || `H${c.number}`;
+      if (c.number === 1) cuspName = 'ASC';
+      else if (c.number === 4) cuspName = 'IC';
+      else if (c.number === 7) cuspName = 'DSC';
+      else if (c.number === 10) cuspName = 'MC';
+
+      natalPoints.push({
+        id: `cusp_${c.number}`,
+        name: cuspName,
+        longitude: c.longitude,
+        sign: c.sign,
+        degree: c.degree,
+        house: c.number,
+      });
     }
   }
 
@@ -291,7 +293,24 @@ export function calculateTransitAspects(transitChart: EnrichedChartResult, natal
 
       for (const def of SUPPORTED_ASPECTS) {
         const orb = Math.abs(actualAngle - def.angle);
-        if (orb <= MAX_ORB) {
+        const maxOrb = getMaxOrb(tPoint, nPoint, def.type);
+        if (orb <= maxOrb) {
+          let applying: boolean | undefined = undefined;
+           const tPos = transitChart.positions.find(p => p.id === tPoint.id.replace('transit_', ''));
+           const speed1 = getPointSpeed(tPoint, tPos, transitChart);
+           const speed2 = 0.0; // Natal points are static in transit calculations
+           const dt = 0.001;
+           const tFuture = normalizeLon(tPoint.longitude + speed1 * dt);
+           const nFuture = normalizeLon(nPoint.longitude + speed2 * dt);
+           const distFuture = calculateAngularDistance(tFuture, nFuture);
+           const currentOrb = Math.abs(actualAngle - def.angle);
+           const futureOrb = Math.abs(distFuture - def.angle);
+           if (Math.abs(futureOrb - currentOrb) < 1e-6) {
+             applying = undefined;
+           } else {
+             applying = futureOrb < currentOrb;
+           }
+
           aspects.push({
             id: `${tPoint.id}_${def.type}_${nPoint.id}`,
             source: tPoint,
@@ -301,6 +320,7 @@ export function calculateTransitAspects(transitChart: EnrichedChartResult, natal
             exactAngle: def.angle,
             actualAngle,
             orb: parseFloat(orb.toFixed(2)),
+            applying,
             interpretationRoles: {
               basePlanet: { id: nPoint.id, name: nPoint.name },
               provokerPlanet: { id: tPoint.id, name: tPoint.name },

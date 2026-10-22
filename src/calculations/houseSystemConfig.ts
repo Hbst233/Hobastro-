@@ -40,5 +40,6 @@ export const HOUSE_SYSTEM_FEATURES: Record<string, HouseSystemFeatureConfig> = {
 
 export function getHouseSystemFeatures(houseSystem?: string): HouseSystemFeatureConfig {
   const system = (houseSystem || 'Placidus').trim();
-  return HOUSE_SYSTEM_FEATURES[system] || HOUSE_SYSTEM_FEATURES['Placidus'];
+  const normalized = system === 'Koch' ? 'KochShestopalov' : system;
+  return HOUSE_SYSTEM_FEATURES[normalized] || HOUSE_SYSTEM_FEATURES['Placidus'];
 }

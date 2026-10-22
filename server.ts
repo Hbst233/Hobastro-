@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import { calculatePositions } from './src/calculations/astroEngine';
+import { calculatePositions, calculateRelocation } from './src/calculations/astroEngine';
 import { enrichChartPositions } from './src/calculations/planetLayer';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -41,6 +41,8 @@ async function startServer() {
     }
   });
 
+const SUPPORTED_HOUSE_SYSTEMS = ['Placidus', 'Koch', 'KochShestopalov', 'Equal', 'Regiomontanus', 'WholeSign'];
+
   // API Endpoint for Natal Chart calculation using existing calculation layer
   app.post('/api/natal-chart', (req, res) => {
     try {
@@ -50,12 +52,53 @@ async function startServer() {
       }
 
       const houseSystem = birthData.houseSystem || 'Placidus';
+      if (!SUPPORTED_HOUSE_SYSTEMS.includes(houseSystem)) {
+        return res.status(400).json({ error: `Неизвестная система домов: ${houseSystem}` });
+      }
+
       const astronomyResult = calculatePositions(birthData, houseSystem);
       const enrichedChart = enrichChartPositions(astronomyResult);
       res.json(enrichedChart);
     } catch (error: any) {
       console.error('Calculation error on /api/natal-chart:', error);
-      res.status(500).json({ error: error.message || 'Internal calculation error' });
+      const msg = error.message || 'Internal calculation error';
+      return res.status(400).json({ error: msg.replace(/Command failed:.*?\n/s, '').trim() });
+    }
+  });
+
+  // API Endpoint for Relocation Chart calculation using existing calculation layer
+  app.post('/api/relocation-chart', (req, res) => {
+    try {
+      const { natalChart, targetLat, targetLon, houseSystem } = req.body;
+      if (!natalChart || targetLat === undefined || targetLon === undefined) {
+        return res.status(400).json({ error: 'Invalid relocation data provided' });
+      }
+
+      const system = houseSystem || natalChart?.houses?.system || 'Placidus';
+      if (!SUPPORTED_HOUSE_SYSTEMS.includes(system)) {
+        return res.status(400).json({ error: `Неизвестная система домов: ${system}` });
+      }
+
+      if (
+        typeof targetLat !== 'number' ||
+        !Number.isFinite(targetLat) ||
+        targetLat < -90 ||
+        targetLat > 90 ||
+        typeof targetLon !== 'number' ||
+        !Number.isFinite(targetLon) ||
+        targetLon < -180 ||
+        targetLon > 180
+      ) {
+        return res.status(400).json({ error: 'Invalid coordinates provided: targetLat must be a finite number between -90 and 90, and targetLon must be a finite number between -180 and 180.' });
+      }
+
+      const relocationResult = calculateRelocation(natalChart, targetLat, targetLon, system);
+      const enrichedRelocation = enrichChartPositions(relocationResult);
+      res.json(enrichedRelocation);
+    } catch (error: any) {
+      console.error('Calculation error on /api/relocation-chart:', error);
+      const msg = error.message || 'Internal calculation error';
+      return res.status(400).json({ error: msg.replace(/Command failed:.*?\n/s, '').trim() });
     }
   });
 

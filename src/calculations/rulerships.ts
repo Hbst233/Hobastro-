@@ -25,7 +25,11 @@ export type PlanetId =
   | 'pluto' 
   | 'north_node' 
   | 'south_node' 
-  | 'lilith';
+  | 'lilith'
+  | 'ceres'
+  | 'pallas'
+  | 'juno'
+  | 'vesta';
 
 export interface SignRulership {
   sign: ZodiacSignName;
@@ -140,6 +144,10 @@ export const ESSENTIAL_DIGNITIES_MAP: Record<PlanetId, EssentialDignities> = {
   'north_node': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
   'south_node': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
   'lilith': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
+  'ceres': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
+  'pallas': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
+  'juno': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
+  'vesta': { domicile: [], detriment: [], exaltation: null, fall: null, triplicity: { day: [], night: [] }, terms: [], faces: [] },
 };
 
 export function getSignRuler(sign: ZodiacSignName): PlanetId {
@@ -200,6 +208,10 @@ export const PLANET_NAMES_RU: Record<PlanetId, string> = {
   north_node: 'Северный узел',
   south_node: 'Южный узел',
   lilith: 'Лилит',
+  ceres: 'Церера',
+  pallas: 'Паллада',
+  juno: 'Юнона',
+  vesta: 'Веста',
 };
 
 export interface PlanetEssentialDignityResult {
