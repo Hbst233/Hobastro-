@@ -1,0 +1,318 @@
+[1mdiff --git a/src/ui/Pages.tsx b/src/ui/Pages.tsx[m
+[1mindex a6639dc..3613be3 100644[m
+[1m--- a/src/ui/Pages.tsx[m
+[1m+++ b/src/ui/Pages.tsx[m
+[36m@@ -1,9 +1,10 @@[m
+ import React, { FC, ReactNode, useState, useEffect } from 'react';[m
+ import { useNavigate } from 'react-router-dom';[m
+[31m-import { Form, Input, Button, Row, Col, AutoComplete, Select, Space } from 'antd';[m
+[31m-import { City, BirthData } from '../types';[m
+[32m+[m[32mimport { Form, Input, Button, Row, Col, AutoComplete, Select, Space, Modal, message, Dropdown } from 'antd';[m
+[32m+[m[32mimport { City, BirthData, SavedChartRecord } from '../types';[m
+[32m+[m[32mimport { getSavedCharts, saveChartRecord, deleteChartRecord, findDuplicateChart, calculateAge, getZodiacSign } from '../utils/savedCharts';[m
+ import dayjs from 'dayjs';[m
+[31m-import { Pencil } from 'lucide-react';[m
+[32m+[m[32mimport { Pencil, MoreVertical } from 'lucide-react';[m
+ import { calculateAspects, calculateChartAspects, calculateTransitAspects } from '../calculations/aspectEngine';[m
+ import { fetchNatalChart, fetchRelocationChart } from '../api/astroApi';[m
+ import { NatalWheel } from '../components/NatalWheel';[m
+[36m@@ -98,6 +99,34 @@[m [mconst NatalDataDisplay = ({ data, onEdit }: { data: BirthData; onEdit: () => voi[m
+ [m
+   const coordStr = lat !== undefined && lon !== undefined ? ` (${formatCoord(lat, true)}, ${formatCoord(lon, false)})` : '';[m
+ [m
+[32m+[m[32m  const handleSaveToDb = () => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const charts = getSavedCharts();[m
+[32m+[m[32m      const dup = findDuplicateChart(charts, data);[m
+[32m+[m[32m      if (dup) {[m
+[32m+[m[32m        Modal.confirm({[m
+[32m+[m[32m          title: 'Карта уже существует в базе',[m
+[32m+[m[32m          content: `Карта для "${data.name}" (${dayjs(data.date).format('DD.MM.YYYY')}) уже есть в базе данных. Хотите сохранить как отдельную копию или перезаписать существующую?`,[m
+[32m+[m[32m          okText: 'Сохранить как копию',[m
+[32m+[m[32m          cancelText: 'Перезаписать',[m
+[32m+[m[32m          onOk: () => {[m
+[32m+[m[32m            saveChartRecord(data);[m
+[32m+[m[32m            message.success('Сохранена отдельная копия карты в базу');[m
+[32m+[m[32m          },[m
+[32m+[m[32m          onCancel: () => {[m
+[32m+[m[32m            saveChartRecord(data, dup.id);[m
+[32m+[m[32m            message.success('Существующая карта в базе перезаписана');[m
+[32m+[m[32m          }[m
+[32m+[m[32m        });[m
+[32m+[m[32m      } else {[m
+[32m+[m[32m        saveChartRecord(data);[m
+[32m+[m[32m        message.success('Карта успешно сохранена в базу');[m
+[32m+[m[32m      }[m
+[32m+[m[32m    } catch (err: any) {[m
+[32m+[m[32m      message.error(err.message || 'Ошибка сохранения в базу');[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+   return ([m
+     <div style={{ marginBottom: '16px', padding: '8px', background: '#f9f9f9', border: '1px solid #d9d9d9' }}>[m
+       <p style={{ margin: '0 0 4px 0', fontSize: 13 }}>[m
+[36m@@ -107,8 +136,11 @@[m [mconst NatalDataDisplay = ({ data, onEdit }: { data: BirthData; onEdit: () => voi[m
+       {data.birthCity && ([m
+         <>[m
+           <p style={{ margin: '0 0 4px 0', fontSize: 13 }}><strong>Город рождения:</strong> {data.birthCity.names?.ru || data.birthCity.name}{coordStr}</p>[m
+[31m-          <div style={{ marginTop: 2 }}>[m
+[32m+[m[32m          <div style={{ marginTop: 6, display: 'flex', gap: '12px', alignItems: 'center' }}>[m
+             <EditIcon onClick={onEdit} />[m
+[32m+[m[32m            <Button size="small" type="primary" onClick={handleSaveToDb} style={{ background: '#ffcc00', color: '#000', borderColor: '#d9d9d9', height: '24px', fontSize: '11px', fontWeight: 'bold' }}>[m
+[32m+[m[32m              Сохранить в базу[m
+[32m+[m[32m            </Button>[m
+           </div>[m
+         </>[m
+       )}[m
+[36m@@ -437,6 +469,49 @@[m [mexport const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {[m
+     navigate('/natal');[m
+   };[m
+ [m
+[32m+[m[32m  const handleSaveToDbFromForm = (values: any) => {[m
+[32m+[m[32m    const formattedDate = dateValue.split('.').reverse().join('-');[m
+[32m+[m[32m    const err = validate({ date: dateValue, time: timeValue });[m
+[32m+[m[32m    if (err) {[m
+[32m+[m[32m      setError(err);[m
+[32m+[m[32m      return;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    setError(null);[m
+[32m+[m[32m    const updated = { ...birthData, name: values.name, date: formattedDate, time: timeValue.slice(0, 5), birthCity: birthData.birthCity, houseSystem: values.houseSystem || houseSystem };[m
+[32m+[m[32m    setBirthData(updated);[m
+[32m+[m[32m    setHouseSystem(updated.houseSystem);[m
+[32m+[m[32m    setIsEditing(false);[m
+[32m+[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const charts = getSavedCharts();[m
+[32m+[m[32m      const dup = findDuplicateChart(charts, updated);[m
+[32m+[m[32m      if (dup) {[m
+[32m+[m[32m        Modal.confirm({[m
+[32m+[m[32m          title: 'Карта уже существует в базе',[m
+[32m+[m[32m          content: `Карта для "${updated.name}" (${dayjs(updated.date).format('DD.MM.YYYY')}) уже есть в базе данных. Хотите сохранить как отдельную копию или перезаписать существующую?`,[m
+[32m+[m[32m          okText: 'Сохранить как копию',[m
+[32m+[m[32m          cancelText: 'Перезаписать',[m
+[32m+[m[32m          onOk: () => {[m
+[32m+[m[32m            saveChartRecord(updated);[m
+[32m+[m[32m            message.success('Сохранена отдельная копия карты в базу');[m
+[32m+[m[32m            navigate('/natal');[m
+[32m+[m[32m          },[m
+[32m+[m[32m          onCancel: () => {[m
+[32m+[m[32m            saveChartRecord(updated, dup.id);[m
+[32m+[m[32m            message.success('Существующая карта в базе перезаписана');[m
+[32m+[m[32m            navigate('/natal');[m
+[32m+[m[32m          }[m
+[32m+[m[32m        });[m
+[32m+[m[32m      } else {[m
+[32m+[m[32m        saveChartRecord(updated);[m
+[32m+[m[32m        message.success('Карта успешно сохранена в базу');[m
+[32m+[m[32m        navigate('/natal');[m
+[32m+[m[32m      }[m
+[32m+[m[32m    } catch (err: any) {[m
+[32m+[m[32m      message.error(err.message || 'Ошибка сохранения в базу');[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+   if (!isEditing) {[m
+     if (loading) {[m
+       return <PageWrapper title="Натальная карта"><div style={{ padding: 24, textAlign: 'center' }}>Расчёт натальной карты...</div></PageWrapper>;[m
+[36m@@ -507,6 +582,9 @@[m [mexport const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {[m
+           <ShestopalovWidget [m
+             data={shestopalovData} [m
+             onToggle={handleShestopalovToggle} [m
+[32m+[m[32m            matrix={houseMatrix}[m
+[32m+[m[32m            selectedObjectId={selectedObjectId}[m
+[32m+[m[32m            onSelectObject={setSelectedObjectId}[m
+           />[m
+         )}[m
+       </PageWrapper>[m
+[36m@@ -694,7 +772,45 @@[m [mexport const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {[m
+             ]}[m
+           />[m
+         </Form.Item>[m
+[31m-        <Button type="primary" htmlType="submit">Сохранить</Button>[m
+[32m+[m[32m        <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>[m
+[32m+[m[32m          <Button[m
+[32m+[m[32m            type="primary"[m
+[32m+[m[32m            htmlType="button"[m
+[32m+[m[32m            onClick={() => {[m
+[32m+[m[32m              form.validateFields().then(values => handleFinish(values)).catch(() => {});[m
+[32m+[m[32m            }}[m
+[32m+[m[32m            style={{[m
+[32m+[m[32m              flex: 1,[m
+[32m+[m[32m              minWidth: '140px',[m
+[32m+[m[32m              height: '38px',[m
+[32m+[m[32m              background: '#003366',[m
+[32m+[m[32m              borderColor: '#003366',[m
+[32m+[m[32m              fontWeight: 'bold',[m
+[32m+[m[32m              fontSize: '13px'[m
+[32m+[m[32m            }}[m
+[32m+[m[32m          >[m
+[32m+[m[32m            Создать[m
+[32m+[m[32m          </Button>[m
+[32m+[m[32m          <Button[m
+[32m+[m[32m            type="primary"[m
+[32m+[m[32m            htmlType="button"[m
+[32m+[m[32m            onClick={() => {[m
+[32m+[m[32m              form.validateFields().then(values => handleSaveToDbFromForm(values)).catch(() => {});[m
+[32m+[m[32m            }}[m
+[32m+[m[32m            style={{[m
+[32m+[m[32m              flex: 1,[m
+[32m+[m[32m              minWidth: '140px',[m
+[32m+[m[32m              height: '38px',[m
+[32m+[m[32m              background: '#ffcc00',[m
+[32m+[m[32m              color: '#000',[m
+[32m+[m[32m              borderColor: '#d9d9d9',[m
+[32m+[m[32m              fontWeight: 'bold',[m
+[32m+[m[32m              fontSize: '13px'[m
+[32m+[m[32m            }}[m
+[32m+[m[32m          >[m
+[32m+[m[32m            Сохранить в базу[m
+[32m+[m[32m          </Button>[m
+[32m+[m[32m        </div>[m
+       </Form>[m
+     </PageWrapper>[m
+   );[m
+[36m@@ -1520,3 +1636,144 @@[m [mexport const ShestopalovPage = () => {[m
+     </PageWrapper>[m
+   );[m
+ };[m
+[32m+[m
+[32m+[m[32mexport const SavedChartsPage = () => {[m
+[32m+[m[32m  const { setBirthData } = useNatal();[m
+[32m+[m[32m  const navigate = useNavigate();[m
+[32m+[m[32m  const [charts, setCharts] = useState<SavedChartRecord[]>([]);[m
+[32m+[m[32m  const [error, setError] = useState<string | null>(null);[m
+[32m+[m
+[32m+[m[32m  const loadCharts = () => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      setCharts(getSavedCharts());[m
+[32m+[m[32m      setError(null);[m
+[32m+[m[32m    } catch (err: any) {[m
+[32m+[m[32m      setError(err.message || 'Ошибка чтения базы карт');[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    loadCharts();[m
+[32m+[m[32m  }, []);[m
+[32m+[m
+[32m+[m[32m  const handleOpen = (chart: SavedChartRecord) => {[m
+[32m+[m[32m    setBirthData(chart.birthData);[m
+[32m+[m[32m    message.success(`Загружена карта: ${chart.birthData.name}`);[m
+[32m+[m[32m    navigate('/natal');[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  const handleDelete = (id: string, name: string) => {[m
+[32m+[m[32m    Modal.confirm({[m
+[32m+[m[32m      title: 'Удаление карты',[m
+[32m+[m[32m      content: `Вы уверены, что хотите удалить карту "${name}" из базы?`,[m
+[32m+[m[32m      okText: 'Удалить',[m
+[32m+[m[32m      okType: 'danger',[m
+[32m+[m[32m      cancelText: 'Отмена',[m
+[32m+[m[32m      onOk: () => {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m          const updated = deleteChartRecord(id);[m
+[32m+[m[32m          setCharts(updated);[m
+[32m+[m[32m          message.success('Карта удалена из базы');[m
+[32m+[m[32m        } catch (err: any) {[m
+[32m+[m[32m          message.error(err.message || 'Ошибка удаления');[m
+[32m+[m[32m        }[m
+[32m+[m[32m      }[m
+[32m+[m[32m    });[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <PageWrapper title="База сохранённых натальных карт">[m
+[32m+[m[32m      {error ? ([m
+[32m+[m[32m        <div style={{ padding: '16px', background: '#fff1f0', border: '1px solid #ffa39e', color: '#cf1322', marginBottom: '16px', fontSize: '13px' }}>[m
+[32m+[m[32m          <strong>Ошибка хранилища:</strong> {error}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      ) : charts.length === 0 ? ([m
+[32m+[m[32m        <div style={{ padding: '24px', textAlign: 'center', color: '#666', fontSize: '13px' }}>[m
+[32m+[m[32m          База сохранённых карт пуста. Перейдите на страницу натальной карты и нажмите «Сохранить в базу».[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      ) : ([m
+[32m+[m[32m        <div className="astro-saved-charts-wrapper">[m
+[32m+[m[32m          <table className="astro-table astro-saved-charts-table">[m
+[32m+[m[32m            <thead>[m
+[32m+[m[32m              <tr>[m
+[32m+[m[32m                <th style={{ width: '30%' }}>Имя</th>[m
+[32m+[m[32m                <th style={{ width: '18%', textAlign: 'center' }}>Дата рождения</th>[m
+[32m+[m[32m                <th style={{ width: '12%', textAlign: 'center' }}>Возраст</th>[m
+[32m+[m[32m                <th style={{ width: '15%', textAlign: 'center' }}>Время рождения</th>[m
+[32m+[m[32m                <th style={{ width: '25%' }}>Город</th>[m
+[32m+[m[32m              </tr>[m
+[32m+[m[32m            </thead>[m
+[32m+[m[32m            <tbody>[m
+[32m+[m[32m              {charts.map((record) => {[m
+[32m+[m[32m                const b = record.birthData;[m
+[32m+[m[32m                const age = b.date ? calculateAge(b.date) : '—';[m
+[32m+[m[32m                const nameStr = b.name || 'Без имени';[m
+[32m+[m[32m                const dateStr = b.date ? dayjs(b.date).format('DD.MM.YY') : '—';[m
+[32m+[m[32m                const timeStr = b.time ? b.time.slice(0, 5) : 'Не указано';[m
+[32m+[m[32m                const cityName = b.birthCity ? (b.birthCity.names?.ru || b.birthCity.name) : 'Не указано';[m
+[32m+[m
+[32m+[m[32m                const menuItems = [[m
+[32m+[m[32m                  {[m
+[32m+[m[32m                    key: 'open',[m
+[32m+[m[32m                    label: 'Открыть',[m
+[32m+[m[32m                    onClick: () => handleOpen(record)[m
+[32m+[m[32m                  },[m
+[32m+[m[32m                  {[m
+[32m+[m[32m                    key: 'delete',[m
+[32m+[m[32m                    label: 'Удалить',[m
+[32m+[m[32m                    danger: true,[m
+[32m+[m[32m                    onClick: () => handleDelete(record.id, nameStr)[m
+[32m+[m[32m                  }[m
+[32m+[m[32m                ];[m
+[32m+[m
+[32m+[m[32m                return ([m
+[32m+[m[32m                  <tr[m
+[32m+[m[32m                    key={record.id}[m
+[32m+[m[32m                    onClick={() => handleOpen(record)}[m
+[32m+[m[32m                    style={{ cursor: 'pointer' }}[m
+[32m+[m[32m                  >[m
+[32m+[m[32m                    <td title={nameStr} style={{ fontWeight: 600, color: '#003366', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>[m
+[32m+[m[32m                      {nameStr}[m
+[32m+[m[32m                    </td>[m
+[32m+[m[32m                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{dateStr}</td>[m
+[32m+[m[32m                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{age}</td>[m
+[32m+[m[32m                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{timeStr}</td>[m
+[32m+[m[32m                    <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>[m
+[32m+[m[32m                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>[m
+[32m+[m[32m                        <span[m
+[32m+[m[32m                          title={cityName}[m
+[32m+[m[32m                          onClick={(e) => {[m
+[32m+[m[32m                            if (b.birthCity) {[m
+[32m+[m[32m                              e.stopPropagation();[m
+[32m+[m[32m                              Modal.info({[m
+[32m+[m[32m                                title: 'Город рождения',[m
+[32m+[m[32m                                content: `${cityName} (${b.birthCity.country || ''})`,[m
+[32m+[m[32m                                okText: 'OK'[m
+[32m+[m[32m                              });[m
+[32m+[m[32m                            }[m
+[32m+[m[32m                          }}[m
+[32m+[m[32m                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: b.birthCity ? 'pointer' : 'default' }}[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                          {cityName}[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                        <Dropdown menu={{ items: menuItems }} trigger={['click']}>[m
+[32m+[m[32m                          <Button[m
+[32m+[m[32m                            type="text"[m
+[32m+[m[32m                            size="small"[m
+[32m+[m[32m                            icon={<MoreVertical size={15} />}[m
+[32m+[m[32m                            onClick={(e) => e.stopPropagation()}[m
+[32m+[m[32m                            style={{ padding: '0 2px', color: '#003366', flexShrink: 0 }}[m
+[32m+[m[32m                          />[m
+[32m+[m[32m                        </Dropdown>[m
+[32m+[m[32m                      </div>[m
+[32m+[m[32m                    </td>[m
+[32m+[m[32m                  </tr>[m
+[32m+[m[32m                );[m
+[32m+[m[32m              })}[m
+[32m+[m[32m            </tbody>[m
+[32m+[m[32m          </table>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      )}[m
+[32m+[m[32m    </PageWrapper>[m
+[32m+[m[32m  );[m
+[32m+[m[32m};[m

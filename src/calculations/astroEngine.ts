@@ -96,6 +96,7 @@ export function calculatePositions(birthData: BirthData, houseSystemOverride?: H
     timezone: timezone,
     timezoneOffsetMinutes: timezoneOffsetMinutes,
     dstMode: dstMode,
+    dst_mode: dstMode,
     lat: lat,
     lon: lon,
     houseSystem: system

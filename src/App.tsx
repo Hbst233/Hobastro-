@@ -1,6 +1,6 @@
 import { Layout, ConfigProvider, Button, Space } from 'antd';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { NatalChart, Relocation, Progressions, Directions, Transits, SolarReturn, Formulas, Analysis, ShestopalovPage } from './ui/Pages';
+import { NatalChart, Relocation, Progressions, Directions, Transits, SolarReturn, Formulas, Analysis, ShestopalovPage, SavedChartsPage } from './ui/Pages';
 import { NatalProvider } from './calculations/natalSource';
 
 const { Header, Content } = Layout;
@@ -34,6 +34,7 @@ const Navigation = () => {
   const items = [
     { path: '/create', label: 'Создать' },
     { path: '/natal', label: 'Натальная карта' },
+    { path: '/saved-charts', label: 'База карт' },
     { path: '/relocation', label: 'Релокация' },
     { path: '/solar-return', label: 'Солярная карта' },
     { path: '/progressions', label: 'Прогрессии' },
@@ -86,6 +87,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/natal" replace />} />
                 <Route path="/natal" element={<NatalChart />} />
+                <Route path="/saved-charts" element={<SavedChartsPage />} />
                 <Route path="/create" element={<NatalChart mode="create" />} />
                 <Route path="/shestopalov" element={<ShestopalovPage />} />
                 <Route path="/solar-return" element={<SolarReturn />} />

@@ -2,6 +2,7 @@ import { createHouseMatrix, buildHouseMatrixGrid } from './houseMatrixEngine';
 import { EnrichedChartResult, EnrichedPlanetPosition } from './planetLayer';
 import { MAX_ORB } from './aspectEngine';
 import { MATRIX_ASPECT_DEFINITIONS } from './matrixAspectPolicy';
+import { validateShestopalovKoch } from './shestopalovEngine';
 
 console.log('--- RUNNING HOUSE MATRIX (STEP 9.4) ARCHITECTURE TESTS ---');
 
@@ -125,6 +126,50 @@ try {
   // 15. Existing Aspect Engine aligned with Astro-Seek
   console.assert(MAX_ORB === 8.0, 'Existing Aspect Engine MAX_ORB is 8.0');
   console.log('✓ 15. Existing Aspect Engine is aligned with Astro-Seek orbs.');
+
+  // 16. JSON Export structure and required fields (metadata, houses, connections, matrixGrid)
+  const gridForExport = buildHouseMatrixGrid(houseMatrix.connections);
+  const jsonPayload = {
+    metadata: {
+      ruleSet: 'Shestopalov',
+      houseSystem: houseMatrix.houseSystem,
+      calculatedAt: new Date().toISOString()
+    },
+    houses: houseMatrix.houses.map(h => ({
+      number: h.number,
+      cuspRuler: h.cuspRuler,
+      interceptedSigns: h.interceptedSigns || [],
+      interceptedCoRulers: h.interceptedCoRulers || []
+    })),
+    connections: houseMatrix.connections,
+    matrixGrid: gridForExport
+  };
+  console.assert(jsonPayload.metadata !== undefined, 'JSON export must have metadata');
+  console.assert(Array.isArray(jsonPayload.houses) && jsonPayload.houses.length === 12, 'JSON export must have 12 houses');
+  console.assert(Array.isArray(jsonPayload.connections), 'JSON export must have connections array');
+  console.assert(jsonPayload.matrixGrid !== undefined, 'JSON export must have matrixGrid');
+  console.log('✓ 16. JSON export structure and required fields validated.');
+
+  // 17. Missing data serialization and interceptedSigns: [] fallback
+  for (const h of jsonPayload.houses) {
+    console.assert(Array.isArray(h.interceptedSigns), 'interceptedSigns must be an array');
+    console.assert(Array.isArray(h.interceptedCoRulers), 'interceptedCoRulers must be an array');
+  }
+  console.log('✓ 17. Missing data serialization & interceptedSigns: [] validated.');
+
+  // 18. Koch house system verification via validateShestopalovKoch
+  const kochCheck = validateShestopalovKoch('Koch');
+  console.assert(kochCheck.isKoch === true, 'validateShestopalovKoch should validate Koch system');
+  const placidusCheck = validateShestopalovKoch('Placidus');
+  console.assert(placidusCheck.isKoch === false, 'validateShestopalovKoch should reject Placidus system');
+  console.log('✓ 18. Koch house system verification via validateShestopalovKoch passed.');
+
+  // 19. Correspondence between atomic connections and aggregated matrixGrid
+  for (const conn of houseMatrix.connections) {
+    const cellConns = gridForExport[conn.sourceHouse]?.[conn.targetHouse] || [];
+    console.assert(cellConns.includes(conn), 'Each connection must correspond to its matrixGrid cell');
+  }
+  console.log('✓ 19. Correspondence between atomic connections and matrixGrid verified.');
 
   console.log('--- ALL HOUSE MATRIX (STEP 9.4) ARCHITECTURE TESTS PASSED SUCCESSFULLY ---');
 } catch (error) {

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { calculatePositions, calculateRelocation } from './src/calculations/astroEngine';
 import { enrichChartPositions } from './src/calculations/planetLayer';
+import { searchCities } from './src/data/citySearch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +15,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Endpoint for Nominatim city search (Autocomplete)
+  // API Endpoint for city search (Local first, then Nominatim fallback)
   app.get('/api/cities', async (req, res) => {
     try {
       const query = req.query.q as string;
@@ -22,6 +23,24 @@ async function startServer() {
         return res.json([]);
       }
 
+      // 1. Local search first
+      const localResults = searchCities(query);
+      if (localResults.length > 0) {
+        const formatted = localResults.map(c => ({
+          place_id: c.id,
+          name: c.names.ru,
+          lat: String(c.lat),
+          lon: String(c.lon),
+          address: {
+            city: c.names.ru,
+            state: c.region,
+            country: c.country
+          }
+        }));
+        return res.json(formatted);
+      }
+
+      // 2. Fallback to Nominatim API
       const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&accept-language=ru&q=${encodeURIComponent(query)}`;
       const response = await fetch(url, {
         headers: {

@@ -2,5 +2,19 @@
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     "superpowers@git+https://github.com/obra/superpowers.git"
-  ]
+  ],
+  "provider": {
+    "gemini-research": {
+      "npm": "@ai-sdk/google",
+      "name": "Gemini Research API",
+      "options": {
+        "apiKey": "{env:GEMINI_RESEARCH_API_KEY}"
+      },
+      "models": {
+        "gemini-3.5-flash-lite": {
+          "name": "Gemini 3.5 Flash Lite"
+        }
+      }
+    }
+  }
 }

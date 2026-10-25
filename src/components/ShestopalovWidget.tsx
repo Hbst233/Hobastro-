@@ -1,12 +1,23 @@
 import React from 'react';
 import { ShestopalovData } from '../calculations/shestopalovEngine';
+import { HouseMatrixResult } from '../calculations/houseMatrixEngine';
+import { HouseMatrixWidget } from './HouseMatrixWidget';
 
 interface ShestopalovWidgetProps {
   data: ShestopalovData;
   onToggle: (enabled: boolean) => void;
+  matrix?: HouseMatrixResult | null;
+  selectedObjectId?: string | null;
+  onSelectObject?: (id: string | null) => void;
 }
 
-export const ShestopalovWidget: React.FC<ShestopalovWidgetProps> = ({ data, onToggle }) => {
+export const ShestopalovWidget: React.FC<ShestopalovWidgetProps> = ({
+  data,
+  onToggle,
+  matrix,
+  selectedObjectId,
+  onSelectObject
+}) => {
   return (
     <div style={{ 
       marginTop: '16px', 
@@ -67,9 +78,19 @@ export const ShestopalovWidget: React.FC<ShestopalovWidgetProps> = ({ data, onTo
       )}
 
       {data.isKoch && data.enabled && (
-        <div style={{ marginTop: '8px', fontSize: '12px', color: '#003366', background: '#fff', padding: '8px', border: '1px solid #adc6ff' }}>
-          <p style={{ margin: '0 0 4px 0' }}><strong>Состояние:</strong> Базовая архитектура Шестопалова успешно подключена и сохранена для всех прогнозных методов.</p>
-          <p style={{ margin: 0, color: '#555' }}>Базовые рассчитанные данные готовы к интеграции формул таблиц домов и формул (Шаг 2).</p>
+        <div style={{ marginTop: '12px' }}>
+          <div style={{ fontSize: '12px', color: '#003366', background: '#fff', padding: '8px', border: '1px solid #adc6ff', marginBottom: '8px' }}>
+            <p style={{ margin: '0 0 4px 0' }}><strong>Состояние:</strong> Интерактивная матрица связей домов по методу С. В. Шестопалова успешно встроена.</p>
+            <p style={{ margin: 0, color: '#555' }}>Используются точные астрономические данные из общего кэша без повторного расчета.</p>
+          </div>
+
+          {matrix && (
+            <HouseMatrixWidget
+              matrix={matrix}
+              selectedObjectId={selectedObjectId}
+              onSelectObject={onSelectObject}
+            />
+          )}
         </div>
       )}
     </div>

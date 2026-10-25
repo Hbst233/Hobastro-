@@ -38,3 +38,9 @@ export interface AstroResult {
   speedLongitude: number;
   isRetrograde: boolean;
 }
+
+export interface SavedChartRecord {
+  id: string;
+  birthData: BirthData;
+  savedAt: string;
+}

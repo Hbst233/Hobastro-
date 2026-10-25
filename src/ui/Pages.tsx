@@ -1,9 +1,10 @@
 import React, { FC, ReactNode, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Row, Col, AutoComplete, Select, Space } from 'antd';
-import { City, BirthData } from '../types';
+import { Form, Input, Button, Row, Col, AutoComplete, Select, Space, Modal, message, Dropdown } from 'antd';
+import { City, BirthData, SavedChartRecord } from '../types';
+import { getSavedCharts, saveChartRecord, deleteChartRecord, findDuplicateChart, calculateAge, getZodiacSign } from '../utils/savedCharts';
 import dayjs from 'dayjs';
-import { Pencil } from 'lucide-react';
+import { Pencil, MoreVertical } from 'lucide-react';
 import { calculateAspects, calculateChartAspects, calculateTransitAspects } from '../calculations/aspectEngine';
 import { fetchNatalChart, fetchRelocationChart } from '../api/astroApi';
 import { NatalWheel } from '../components/NatalWheel';
@@ -98,6 +99,34 @@ const NatalDataDisplay = ({ data, onEdit }: { data: BirthData; onEdit: () => voi
 
   const coordStr = lat !== undefined && lon !== undefined ? ` (${formatCoord(lat, true)}, ${formatCoord(lon, false)})` : '';
 
+  const handleSaveToDb = () => {
+    try {
+      const charts = getSavedCharts();
+      const dup = findDuplicateChart(charts, data);
+      if (dup) {
+        Modal.confirm({
+          title: 'Карта уже существует в базе',
+          content: `Карта для "${data.name}" (${dayjs(data.date).format('DD.MM.YYYY')}) уже есть в базе данных. Хотите сохранить как отдельную копию или перезаписать существующую?`,
+          okText: 'Сохранить как копию',
+          cancelText: 'Перезаписать',
+          onOk: () => {
+            saveChartRecord(data);
+            message.success('Сохранена отдельная копия карты в базу');
+          },
+          onCancel: () => {
+            saveChartRecord(data, dup.id);
+            message.success('Существующая карта в базе перезаписана');
+          }
+        });
+      } else {
+        saveChartRecord(data);
+        message.success('Карта успешно сохранена в базу');
+      }
+    } catch (err: any) {
+      message.error(err.message || 'Ошибка сохранения в базу');
+    }
+  };
+
   return (
     <div style={{ marginBottom: '16px', padding: '8px', background: '#f9f9f9', border: '1px solid #d9d9d9' }}>
       <p style={{ margin: '0 0 4px 0', fontSize: 13 }}>
@@ -107,8 +136,11 @@ const NatalDataDisplay = ({ data, onEdit }: { data: BirthData; onEdit: () => voi
       {data.birthCity && (
         <>
           <p style={{ margin: '0 0 4px 0', fontSize: 13 }}><strong>Город рождения:</strong> {data.birthCity.names?.ru || data.birthCity.name}{coordStr}</p>
-          <div style={{ marginTop: 2 }}>
+          <div style={{ marginTop: 6, display: 'flex', gap: '12px', alignItems: 'center' }}>
             <EditIcon onClick={onEdit} />
+            <Button size="small" type="primary" onClick={handleSaveToDb} style={{ background: '#ffcc00', color: '#000', borderColor: '#d9d9d9', height: '24px', fontSize: '11px', fontWeight: 'bold' }}>
+              Сохранить в базу
+            </Button>
           </div>
         </>
       )}
@@ -122,6 +154,7 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
   const [value, setValue] = useState(initialCity ? (initialCity.names?.ru || initialCity.name) : '');
   const [options, setOptions] = useState<{ value: string; city: City; label: ReactNode }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const searchTimeoutRef = React.useRef<any>(null);
   const lastReqIdRef = React.useRef(0);
 
@@ -141,10 +174,12 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
     if (!searchText || searchText.trim().length < 2) {
       setOptions([]);
       setLoading(false);
+      setFetchError(null);
       return;
     }
 
     setLoading(true);
+    setFetchError(null);
     const reqId = ++lastReqIdRef.current;
 
     searchTimeoutRef.current = setTimeout(async () => {
@@ -153,7 +188,7 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
         if (reqId !== lastReqIdRef.current) return;
 
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          throw new Error('Ошибка сети при запросе списка городов');
         }
 
         const items = await response.json();
@@ -190,7 +225,7 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
                 lon: 30.52,
                 timezone: 'UTC'
               },
-              label: <div style={{ color: '#888', fontStyle: 'italic', padding: '4px 0' }}>Город не найден в Nominatim. Нажмите для использования введённого значения.</div>
+              label: <div style={{ color: '#888', fontStyle: 'italic', padding: '4px 0' }}>Город не найден. Нажмите для использования введённого значения.</div>
             }]);
           }
           setLoading(false);
@@ -254,11 +289,12 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
 
         setOptions(mappedOpts);
         setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         if (reqId !== lastReqIdRef.current) return;
         console.error('Error fetching cities:', err);
         setLoading(false);
         setOptions([]);
+        setFetchError(err.message || 'Ошибка загрузки списка городов');
       }
     }, 400); // 400ms debounce
   };
@@ -274,7 +310,13 @@ const CityInput: FC<{ label: string; onSelect: (city: City) => void; initialCity
           onSelect(option.city);
         }}
         placeholder="Начните вводить название города (например, Белая Церковь)..."
-        notFoundContent={loading ? <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Загрузка...</div> : <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Ничего не найдено</div>}
+        notFoundContent={
+          value.trim().length < 2 ? null :
+          fetchError ? <div style={{ padding: 8, textAlign: 'center', color: '#ff4d4f' }}>{fetchError}</div> :
+          loading ? <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Загрузка...</div> :
+          <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Ничего не найдено</div>
+        }
+        dropdownStyle={{ zIndex: 1050 }}
         style={{ width: '100%' }}
       />
     </Form.Item>
@@ -437,6 +479,49 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
     navigate('/natal');
   };
 
+  const handleSaveToDbFromForm = (values: any) => {
+    const formattedDate = dateValue.split('.').reverse().join('-');
+    const err = validate({ date: dateValue, time: timeValue });
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError(null);
+    const updated = { ...birthData, name: values.name, date: formattedDate, time: timeValue.slice(0, 5), birthCity: birthData.birthCity, houseSystem: values.houseSystem || houseSystem };
+    setBirthData(updated);
+    setHouseSystem(updated.houseSystem);
+    setIsEditing(false);
+
+    try {
+      const charts = getSavedCharts();
+      const dup = findDuplicateChart(charts, updated);
+      if (dup) {
+        Modal.confirm({
+          title: 'Карта уже существует в базе',
+          content: `Карта для "${updated.name}" (${dayjs(updated.date).format('DD.MM.YYYY')}) уже есть в базе данных. Хотите сохранить как отдельную копию или перезаписать существующую?`,
+          okText: 'Сохранить как копию',
+          cancelText: 'Перезаписать',
+          onOk: () => {
+            saveChartRecord(updated);
+            message.success('Сохранена отдельная копия карты в базу');
+            navigate('/natal');
+          },
+          onCancel: () => {
+            saveChartRecord(updated, dup.id);
+            message.success('Существующая карта в базе перезаписана');
+            navigate('/natal');
+          }
+        });
+      } else {
+        saveChartRecord(updated);
+        message.success('Карта успешно сохранена в базу');
+        navigate('/natal');
+      }
+    } catch (err: any) {
+      message.error(err.message || 'Ошибка сохранения в базу');
+    }
+  };
+
   if (!isEditing) {
     if (loading) {
       return <PageWrapper title="Натальная карта"><div style={{ padding: 24, textAlign: 'center' }}>Расчёт натальной карты...</div></PageWrapper>;
@@ -507,6 +592,9 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
           <ShestopalovWidget 
             data={shestopalovData} 
             onToggle={handleShestopalovToggle} 
+            matrix={houseMatrix}
+            selectedObjectId={selectedObjectId}
+            onSelectObject={setSelectedObjectId}
           />
         )}
       </PageWrapper>
@@ -694,7 +782,45 @@ export const NatalChart = ({ mode = 'view' }: { mode?: 'view' | 'create' }) => {
             ]}
           />
         </Form.Item>
-        <Button type="primary" htmlType="submit">Сохранить</Button>
+        <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
+          <Button
+            type="primary"
+            htmlType="button"
+            onClick={() => {
+              form.validateFields().then(values => handleFinish(values)).catch(() => {});
+            }}
+            style={{
+              flex: 1,
+              minWidth: '140px',
+              height: '38px',
+              background: '#003366',
+              borderColor: '#003366',
+              fontWeight: 'bold',
+              fontSize: '13px'
+            }}
+          >
+            Создать
+          </Button>
+          <Button
+            type="primary"
+            htmlType="button"
+            onClick={() => {
+              form.validateFields().then(values => handleSaveToDbFromForm(values)).catch(() => {});
+            }}
+            style={{
+              flex: 1,
+              minWidth: '140px',
+              height: '38px',
+              background: '#ffcc00',
+              color: '#000',
+              borderColor: '#d9d9d9',
+              fontWeight: 'bold',
+              fontSize: '13px'
+            }}
+          >
+            Сохранить в базу
+          </Button>
+        </div>
       </Form>
     </PageWrapper>
   );
@@ -978,6 +1104,7 @@ export const Relocation = () => {
   const [cityInput, setCityInput] = useState<string>(() => birthData?.birthCity?.names?.ru || birthData?.birthCity?.name || '');
   const [cityOptions, setCityOptions] = useState<{ value: string; city: City; label: ReactNode }[]>([]);
   const [cityLoading, setCityLoading] = useState<boolean>(false);
+  const [cityError, setCityError] = useState<string | null>(null);
   const citySearchTimeoutRef = React.useRef<any>(null);
   const cityLastReqIdRef = React.useRef(0);
 
@@ -991,10 +1118,12 @@ export const Relocation = () => {
     if (!searchText || searchText.trim().length < 2) {
       setCityOptions([]);
       setCityLoading(false);
+      setCityError(null);
       return;
     }
 
     setCityLoading(true);
+    setCityError(null);
     const reqId = ++cityLastReqIdRef.current;
 
     citySearchTimeoutRef.current = setTimeout(async () => {
@@ -1003,7 +1132,7 @@ export const Relocation = () => {
         if (reqId !== cityLastReqIdRef.current) return;
 
         if (!response.ok) {
-          throw new Error('Network response was not ok');
+          throw new Error('Ошибка сети при запросе списка городов');
         }
 
         const items = await response.json();
@@ -1040,7 +1169,7 @@ export const Relocation = () => {
                 lon: 30.52,
                 timezone: 'UTC'
               },
-              label: <div style={{ color: '#888', fontStyle: 'italic', padding: '4px 0' }}>Город не найден в Nominatim. Нажмите для использования введённого значения.</div>
+              label: <div style={{ color: '#888', fontStyle: 'italic', padding: '4px 0' }}>Город не найден. Нажмите для использования введённого значения.</div>
             }]);
           }
           setCityLoading(false);
@@ -1104,11 +1233,12 @@ export const Relocation = () => {
 
         setCityOptions(mappedOpts);
         setCityLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         if (reqId !== cityLastReqIdRef.current) return;
         console.error('Error fetching cities:', err);
         setCityLoading(false);
         setCityOptions([]);
+        setCityError(err.message || 'Ошибка загрузки списка городов');
       }
     }, 400);
   };
@@ -1286,7 +1416,13 @@ export const Relocation = () => {
                   }
                 }}
                 placeholder="Город переезда (например, Münster)"
-                notFoundContent={cityLoading ? <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Загрузка...</div> : <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Ничего не найдено</div>}
+                notFoundContent={
+                  cityInput.trim().length < 2 ? null :
+                  cityError ? <div style={{ padding: 8, textAlign: 'center', color: '#ff4d4f' }}>{cityError}</div> :
+                  cityLoading ? <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Загрузка...</div> :
+                  <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>Ничего не найдено</div>
+                }
+                dropdownStyle={{ zIndex: 1050 }}
                 style={{ width: '100%' }}
               />
             </Form.Item>
@@ -1517,6 +1653,147 @@ export const ShestopalovPage = () => {
           </ul>
         </div>
       </div>
+    </PageWrapper>
+  );
+};
+
+export const SavedChartsPage = () => {
+  const { setBirthData } = useNatal();
+  const navigate = useNavigate();
+  const [charts, setCharts] = useState<SavedChartRecord[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadCharts = () => {
+    try {
+      setCharts(getSavedCharts());
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка чтения базы карт');
+    }
+  };
+
+  useEffect(() => {
+    loadCharts();
+  }, []);
+
+  const handleOpen = (chart: SavedChartRecord) => {
+    setBirthData(chart.birthData);
+    message.success(`Загружена карта: ${chart.birthData.name}`);
+    navigate('/natal');
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    Modal.confirm({
+      title: 'Удаление карты',
+      content: `Вы уверены, что хотите удалить карту "${name}" из базы?`,
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: () => {
+        try {
+          const updated = deleteChartRecord(id);
+          setCharts(updated);
+          message.success('Карта удалена из базы');
+        } catch (err: any) {
+          message.error(err.message || 'Ошибка удаления');
+        }
+      }
+    });
+  };
+
+  return (
+    <PageWrapper title="База сохранённых натальных карт">
+      {error ? (
+        <div style={{ padding: '16px', background: '#fff1f0', border: '1px solid #ffa39e', color: '#cf1322', marginBottom: '16px', fontSize: '13px' }}>
+          <strong>Ошибка хранилища:</strong> {error}
+        </div>
+      ) : charts.length === 0 ? (
+        <div style={{ padding: '24px', textAlign: 'center', color: '#666', fontSize: '13px' }}>
+          База сохранённых карт пуста. Перейдите на страницу натальной карты и нажмите «Сохранить в базу».
+        </div>
+      ) : (
+        <div className="astro-saved-charts-wrapper">
+          <table className="astro-table astro-saved-charts-table">
+            <thead>
+              <tr>
+                <th style={{ width: '30%' }}>Имя</th>
+                <th style={{ width: '18%', textAlign: 'center' }}>Дата рождения</th>
+                <th style={{ width: '12%', textAlign: 'center' }}>Возраст</th>
+                <th style={{ width: '15%', textAlign: 'center' }}>Время рождения</th>
+                <th style={{ width: '25%' }}>Город</th>
+              </tr>
+            </thead>
+            <tbody>
+              {charts.map((record) => {
+                const b = record.birthData;
+                const age = b.date ? calculateAge(b.date) : '—';
+                const nameStr = b.name || 'Без имени';
+                const dateStr = b.date ? dayjs(b.date).format('DD.MM.YY') : '—';
+                const timeStr = b.time ? b.time.slice(0, 5) : 'Не указано';
+                const cityName = b.birthCity ? (b.birthCity.names?.ru || b.birthCity.name) : 'Не указано';
+
+                const menuItems = [
+                  {
+                    key: 'open',
+                    label: 'Открыть',
+                    onClick: () => handleOpen(record)
+                  },
+                  {
+                    key: 'delete',
+                    label: 'Удалить',
+                    danger: true,
+                    onClick: () => handleDelete(record.id, nameStr)
+                  }
+                ];
+
+                return (
+                  <tr
+                    key={record.id}
+                    onClick={() => handleOpen(record)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td title={nameStr} style={{ fontWeight: 600, color: '#003366', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {nameStr}
+                    </td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{dateStr}</td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{age}</td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{timeStr}</td>
+                    <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                        <span
+                          title={cityName}
+                          onClick={(e) => {
+                            if (b.birthCity) {
+                              e.stopPropagation();
+                              Modal.info({
+                                title: 'Город рождения',
+                                content: `${cityName} (${b.birthCity.country || ''})`,
+                                okText: 'OK'
+                              });
+                            }
+                          }}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: b.birthCity ? 'pointer' : 'default' }}
+                        >
+                          {cityName}
+                        </span>
+                        <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<MoreVertical size={15} />}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ padding: '0 2px', color: '#003366', flexShrink: 0 }}
+                          />
+                        </Dropdown>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </PageWrapper>
   );
 };

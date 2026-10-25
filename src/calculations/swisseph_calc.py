@@ -151,7 +151,7 @@ def calculate(data):
         time_str = data.get('time') # HH:mm
         tz_str = data.get('timezone', 'UTC')
         tz_offset_minutes = data.get('timezoneOffsetMinutes')
-        dst_mode = data.get('dstMode', 'auto')
+        dst_mode = data.get('dst_mode') or data.get('dstMode') or data.get('dst', 'auto')
         lat = data.get('lat', 50.45)
         lon_deg = data.get('lon', 30.52)
         house_system = data.get('houseSystem', 'Placidus')

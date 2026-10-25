@@ -131,3 +131,53 @@
     margin-bottom: 12px;
   }
 }
+
+.astro-saved-charts-wrapper {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  position: relative;
+  border: 1px solid var(--astro-table-border);
+  background: #fff;
+}
+
+.astro-saved-charts-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+  color: var(--astro-text);
+  background: #fff;
+}
+
+.astro-saved-charts-table th,
+.astro-saved-charts-table td {
+  padding: 8px 10px;
+  border: 1px solid var(--astro-table-border);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.astro-saved-charts-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--astro-table-head);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .astro-saved-charts-table {
+    font-size: 12px;
+  }
+  .astro-saved-charts-table th,
+  .astro-saved-charts-table td {
+    padding: 6px 4px;
+  }
+}
