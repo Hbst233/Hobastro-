@@ -1,4 +1,1 @@
-pyswisseph==2.21.0
-
-pyswisseph
-pytz
+pyswisseph==2.10.3.2
